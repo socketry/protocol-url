@@ -4,6 +4,7 @@
 # Copyright, 2025, by Samuel Williams.
 
 require_relative "encoding"
+require_relative "path"
 
 module Protocol
 	module URL
@@ -32,7 +33,7 @@ module Protocol
 				when Relative
 					# Relative + Relative: merge paths directly
 					self.class.new(
-						expand_path(self.path, other.path, true),
+						Path.expand(self.path, other.path, true),
 						other.query,
 						other.fragment
 					)
@@ -68,74 +69,8 @@ module Protocol
 				append
 			end
 			
-			def absolute?
-				false
-			end
-			
-			def relative?
-				true
-			end
-			
 			def inspect
 				"#<#{self.class} #{to_s}>"
-			end
-			
-			private
-			
-			def split(path)
-				if path.empty?
-					[path]
-				else
-					path.split("/", -1)
-				end
-			end
-			
-			def expand_parts(path, parts)
-				parts.each do |part|
-					if part == "."
-						# No-op (ignore current directory)
-					elsif part == ".." and path.last and path.last != ".."
-						if path.last != ""
-							# We can go up one level:
-							path.pop
-						end
-					else
-						path << part
-					end
-				end
-			end
-			
-			# @parameter pop [Boolean] whether to remove the last path component of the base path, to conform to URI merging behaviour, as defined by RFC2396.
-			def expand_path(base, relative, pop = true)
-				if relative.start_with? "/"
-					return relative
-				end
-				
-				path = split(base)
-				
-				# RFC2396 Section 5.2:
-				# 6) a) All but the last segment of the base URI's path component is
-				# copied to the buffer.  In other words, any characters after the
-				# last (right-most) slash character, if any, are excluded.
-				#
-				# NOTE: Since ".." and "." are considered special path segments with
-				# navigational meaning, we treat them intuitively: if the last segment
-				# is ".." we don't pop it, as it's a navigation instruction rather than
-				# a filename. This provides more intuitive behavior when combining relative
-				# paths, which is not explicitly defined by the RFC.
-				if (pop or path.last == "") and path.last != ".." and path.last != "."
-					path.pop
-				end
-				
-				parts = split(relative)
-				expand_parts(path, parts)
-				
-				# Ensure absolute paths start with "":
-				if path.first != "" and base.start_with?("/")
-					path.unshift("")
-				end
-				
-				return path.join("/")
 			end
 		end
 	end

@@ -299,4 +299,38 @@ describe Protocol::URL::Reference do
 			expect(result).to be(:start_with?, "/path?")
 		end
 	end
+	
+	with "#query?" do
+		it "returns false for nil query" do
+			reference = subject.new("/path", nil, nil, nil)
+			expect(reference.query?).to be == nil
+		end
+		
+		it "returns false for empty query" do
+			reference = subject.new("/path", "", nil, nil)
+			expect(reference.query?).to be == false
+		end
+		
+		it "returns true for non-empty query" do
+			reference = subject.new("/path", "foo=bar", nil, nil)
+			expect(reference.query?).to be == true
+		end
+	end
+	
+	with "#fragment?" do
+		it "returns false for nil fragment" do
+			reference = subject.new("/path", nil, nil, nil)
+			expect(reference.fragment?).to be == nil
+		end
+		
+		it "returns false for empty fragment" do
+			reference = subject.new("/path", nil, "", nil)
+			expect(reference.fragment?).to be == false
+		end
+		
+		it "returns true for non-empty fragment" do
+			reference = subject.new("/path", nil, "section", nil)
+			expect(reference.fragment?).to be == true
+		end
+	end
 end

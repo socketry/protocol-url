@@ -75,4 +75,18 @@ describe Protocol::URL::Encoding do
 			end.to raise_exception(ArgumentError, message: be =~ /Key length exceeded/)
 		end
 	end
+	
+	describe ".encode with prefix" do
+		it "returns prefix for nil value" do
+			result = Protocol::URL::Encoding.encode(nil, "prefix")
+			expect(result).to be == "prefix"
+		end
+		
+		it "handles nested array elements correctly" do
+			# This tests the line: top -= 1 unless last.include?(nested)
+			result = Protocol::URL::Encoding.encode({"items" => [{"name" => "a"}, {"name" => "b"}]})
+			expect(result).to be(:include?, "items[][name]=a")
+			expect(result).to be(:include?, "items[][name]=b")
+		end
+	end
 end

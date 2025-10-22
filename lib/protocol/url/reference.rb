@@ -124,7 +124,7 @@ module Protocol
 				other = self.class[other]
 				
 				self.class.new(
-					expand_path(self.path, other.path, true),
+					Path.expand(self.path, other.path, true),
 					other.query,
 					other.fragment,
 					other.parameters,
@@ -172,7 +172,7 @@ module Protocol
 				end
 				
 				if path
-					path = expand_path(@path, path, pop)
+					path = Path.expand(@path, path, pop)
 				else
 					path = @path
 				end

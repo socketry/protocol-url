@@ -28,5 +28,22 @@ describe Protocol::URL do
 			expect(url).to be_a(Protocol::URL::Relative)
 			expect(url.path).to be == "/_components/"
 		end
+		
+		it "returns nil for nil input" do
+			url = Protocol::URL[nil]
+			expect(url).to be_nil
+		end
+		
+		it "returns same object if already a Relative" do
+			relative = Protocol::URL::Relative.new("/path")
+			url = Protocol::URL[relative]
+			expect(url).to be_equal(relative)
+		end
+		
+		it "raises error for invalid input" do
+			expect do
+				Protocol::URL[123]
+			end.to raise_exception(ArgumentError, message: be =~ /Cannot coerce/)
+		end
 	end
 end

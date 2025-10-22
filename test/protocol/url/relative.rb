@@ -19,10 +19,32 @@ describe Protocol::URL::Relative do
 		expect(result.to_s).to be == "/_components/button.js"
 	end
 	
-	it "preserves .. in base path" do
+	it "simplifies .. in base path" do
 		base = Protocol::URL["bar/.."]
 		relative = Protocol::URL["baz/file.txt"]
 		result = base + relative
-		expect(result.to_s).to be == "bar/../baz/file.txt"
+		expect(result.to_s).to be == "baz/file.txt"
+	end
+	
+	with "#+" do
+		it "returns Absolute when adding Absolute to Relative" do
+			relative = Protocol::URL::Relative.new("/path")
+			absolute = Protocol::URL::Absolute.new("https", "//example.com", "/other")
+			result = relative + absolute
+			expect(result).to be_equal(absolute)
+		end
+		
+		it "handles String argument" do
+			relative = Protocol::URL::Relative.new("/base/")
+			result = relative + "path.html"
+			expect(result.path).to be == "/base/path.html"
+		end
+		
+		it "raises error for invalid type" do
+			relative = Protocol::URL::Relative.new("/path")
+			expect do
+				relative + 123
+			end.to raise_exception(ArgumentError, message: be =~ /Cannot combine/)
+		end
 	end
 end
