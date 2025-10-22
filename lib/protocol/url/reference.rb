@@ -14,12 +14,33 @@ module Protocol
 		class Reference < Relative
 			include Comparable
 			
-			# Generate a reference from a path and user parameters. The path may contain a `#fragment` or `?query=parameters`.
-			def self.parse(value, parameters = nil)
-				base, fragment = value.split("#", 2)
-				path, query = base.split("?", 2)
-				
-				self.new(path, query, fragment, parameters)
+			def self.[](value, parameters = nil)
+				case value
+				when String
+					if match = value.match(PATTERN)
+						path = match[:path]
+						query = match[:query]
+						fragment = match[:fragment]
+						
+						# Unescape path and fragment for user-friendly internal storage
+						# Query strings are kept as-is since they contain = and & syntax
+						path = Encoding.unescape(path) if path && !path.empty?
+						fragment = Encoding.unescape(fragment) if fragment
+						
+						self.new(path, query, fragment, parameters)
+					else
+						raise ArgumentError, "Invalid URL (contains whitespace or control characters): #{value.inspect}"
+					end
+				when Relative
+					self.new(value.path, value.query, value.fragment, parameters)
+				when nil
+					nil
+				else
+					raise ArgumentError, "Cannot coerce #{value.inspect} to Reference!"
+				end
+			end			# Generate a reference from a path and user parameters. The path may contain a `#fragment` or `?query=parameters`.
+			def self.parse(value = "/", parameters = nil)
+				self.[](value, parameters)
 			end
 			
 			# Initialize the reference.
@@ -59,18 +80,6 @@ module Protocol
 				to_ary <=> other.to_ary
 			end
 			
-			# Type-cast a reference.
-			#
-			# @parameter reference [Reference | String] The reference to type-cast.
-			# @returns [Reference] The type-casted reference.
-			def self.[] reference
-				if reference.is_a? self
-					return reference
-				else
-					return self.parse(reference)
-				end
-			end
-			
 			# @returns [Boolean] Whether the reference has parameters.
 			def parameters?
 				@parameters and !@parameters.empty?
@@ -108,12 +117,20 @@ module Protocol
 			end
 			
 			# Append the reference to the given buffer.
-			private def append_query(buffer = String.new)
+			# Encodes the path and fragment which are stored unescaped internally.
+			# Query strings are passed through as-is (they contain = and & which are valid syntax).
+			def append(buffer = String.new)
+				buffer << Encoding.escape_path(@path)
+				
 				if @query and !@query.empty?
 					buffer << "?" << @query
 					buffer << "&" << Encoding.encode(@parameters) if parameters?
 				elsif parameters?
 					buffer << "?" << Encoding.encode(@parameters)
+				end
+				
+				if @fragment and !@fragment.empty?
+					buffer << "#" << Encoding.escape_fragment(@fragment)
 				end
 				
 				return buffer
@@ -143,7 +160,7 @@ module Protocol
 			# @parameter fragment [String] Set the fragment to this value.
 			# @parameter pop [Boolean] If the path contains a trailing filename, pop the last component of the path before appending the new path.
 			# @parameter merge [Boolean] If the parameters are specified, merge them with the existing parameters, otherwise replace them (including query string).
-			def with(path: nil, parameters: false, fragment: @fragment, pop: false, merge: true)
+			def with(path: nil, query: @query, fragment: @fragment, parameters: false, pop: false, merge: true)
 				if merge
 					# Merge mode: combine new parameters with existing, keep query:
 					# parameters = (@parameters || {}).merge(parameters || {})
@@ -156,26 +173,18 @@ module Protocol
 					elsif !parameters
 						parameters = @parameters
 					end
-					
-					query = @query
 				else
 					# Replace mode: use new parameters if provided, clear query when replacing:
 					if parameters == false
 						# No new parameters provided, keep existing:
 						parameters = @parameters
-						query = @query
 					else
 						# New parameters provided, replace and clear query:
-						# parameters = parameters
 						query = nil
 					end
 				end
 				
-				if path
-					path = Path.expand(@path, path, pop)
-				else
-					path = @path
-				end
+				path = Path.expand(@path, path, pop)
 				
 				self.class.new(path, query, fragment, parameters)
 			end

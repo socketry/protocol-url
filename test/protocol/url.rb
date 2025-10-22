@@ -40,10 +40,22 @@ describe Protocol::URL do
 			expect(url).to be_equal(relative)
 		end
 		
-		it "raises error for invalid input" do
+		it "raises error for invalid input type" do
 			expect do
 				Protocol::URL[123]
 			end.to raise_exception(ArgumentError, message: be =~ /Cannot coerce/)
+		end
+		
+		it "rejects strings with whitespace" do
+			expect do
+				Protocol::URL[" "]
+			end.to raise_exception(ArgumentError, message: be =~ /Invalid URL.*whitespace/)
+		end
+		
+		it "rejects strings with control characters" do
+			expect do
+				Protocol::URL["\r\n"]
+			end.to raise_exception(ArgumentError, message: be =~ /Invalid URL.*control characters/)
 		end
 	end
 end

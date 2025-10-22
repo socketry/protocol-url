@@ -13,7 +13,7 @@ You can create references in several ways:
 ### Constructing from Components
 
 ``` ruby
-require 'protocol/url'
+require "protocol/url"
 
 # Reference with path only:
 reference = Protocol::URL::Reference.new("/api/users")
@@ -125,9 +125,9 @@ You can update multiple components at once:
 base = Protocol::URL::Reference.new("/api/users")
 
 modified = base.with(
-  path: "posts",
-  query: "author=john&status=published",
-  fragment: "top"
+		path: "posts",
+		query: "author=john&status=published",
+		fragment: "top"
 )
 modified.to_s  # => "/api/posts?author=john&status=published#top"
 ```

@@ -25,7 +25,7 @@ Additionally, the {ruby Protocol::URL::Path} module provides low-level utilities
 Parse complete URLs with scheme and authority:
 
 ``` ruby
-require 'protocol/url'
+require "protocol/url"
 
 # Parse an absolute URL:
 url = Protocol::URL["https://api.example.com:8080/v1/users?page=2#results"]
@@ -170,7 +170,7 @@ updated.to_s  # => "/api/users?status=inactive#results"
 The library handles URL encoding automatically for path components:
 
 ``` ruby
-require 'protocol/url/encoding'
+require "protocol/url/encoding"
 
 # Escape path components (preserves slashes):
 escaped = Protocol::URL::Encoding.escape_path("/path/with spaces/file.html")

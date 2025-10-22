@@ -49,6 +49,26 @@ describe Protocol::URL::Reference do
 		end
 	end
 	
+	with ".[]" do
+		it "raises error for invalid input type" do
+			expect do
+				subject[123]
+			end.to raise_exception(ArgumentError, message: be =~ /Cannot coerce/)
+		end
+		
+		it "returns nil for nil input" do
+			expect(subject[nil]).to be_nil
+		end
+		
+		it "accepts Relative objects" do
+			relative = Protocol::URL::Relative.new("/path", "q=test", "frag")
+			ref = subject[relative]
+			expect(ref.path).to be == "/path"
+			expect(ref.query).to be == "q=test"
+			expect(ref.fragment).to be == "frag"
+		end
+	end
+	
 	with "#with" do
 		it "can nest paths" do
 			reference = subject.new("/foo")
@@ -186,9 +206,29 @@ describe Protocol::URL::Reference do
 		end
 	end
 	
-	describe Protocol::URL::Reference.parse("path with spaces/image.jpg") do
-		it "encodes whitespace" do
+	describe Protocol::URL::Reference.parse("path%20with%20spaces/image.jpg") do
+		it "preserves encoded whitespace" do
 			expect(subject.to_s).to be == "path%20with%20spaces/image.jpg"
+		end
+	end
+	
+	with "invalid input" do
+		it "accepts properly encoded input" do
+			# This should work - it's properly encoded
+			ref = Protocol::URL::Reference.parse("path%20with%20spaces")
+			expect(ref.to_s).to be == "path%20with%20spaces"
+		end
+		
+		it "rejects strings with unencoded whitespace" do
+			expect do
+				Protocol::URL::Reference.parse("path with spaces")
+			end.to raise_exception(ArgumentError, message: be =~ /Invalid URL.*whitespace/)
+		end
+		
+		it "rejects strings with control characters" do
+			expect do
+				Protocol::URL::Reference.parse("path\r\n")
+			end.to raise_exception(ArgumentError, message: be =~ /Invalid URL.*control characters/)
 		end
 	end
 	
@@ -210,13 +250,13 @@ describe Protocol::URL::Reference do
 		end
 	end
 	
-	describe Protocol::URL::Reference.parse("index#All Your Base") do
+	describe Protocol::URL::Reference.parse("index#All%20Your%20Base") do
 		it "encodes fragment" do
 			expect(subject.to_s).to be == "index\#All%20Your%20Base"
 		end
 	end
 	
-	describe Protocol::URL::Reference.parse("I/❤️/UNICODE", face: "😀") do
+	describe Protocol::URL::Reference.new("I/❤️/UNICODE", nil, nil, {face: "😀"}) do
 		it "encodes unicode" do
 			expect(subject.to_s).to be == "I/%E2%9D%A4%EF%B8%8F/UNICODE?face=%F0%9F%98%80"
 		end

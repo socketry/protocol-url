@@ -8,8 +8,8 @@ require "protocol/url"
 # RFC 3986 Section 5.4 - Reference Resolution Examples
 # Base URI: http://a/b/c/d;p?q
 
-describe Protocol::URL::Reference do
-	let(:base) { Protocol::URL["http://a/b/c/d;p?q"] }
+describe Protocol::URL do
+	let(:base) {Protocol::URL["http://a/b/c/d;p?q"]}
 	
 	describe "normal examples" do
 		it "resolves 'g:h'" do

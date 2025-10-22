@@ -74,6 +74,13 @@ describe Protocol::URL::Encoding do
 				Protocol::URL::Encoding.decode("a[b][c][d][e][f][g][h][i]=value")
 			end.to raise_exception(ArgumentError, message: be =~ /Key length exceeded/)
 		end
+		
+		it "raises on empty key path" do
+			expect do
+				# A query string with empty key (just "=value")
+				Protocol::URL::Encoding.decode("=value")
+			end.to raise_exception(ArgumentError, message: be =~ /Invalid key path/)
+		end
 	end
 	
 	describe ".encode with prefix" do

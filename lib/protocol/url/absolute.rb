@@ -21,6 +21,14 @@ module Protocol
 			attr :scheme
 			attr :authority
 			
+			def scheme?
+				@scheme and !@scheme.empty?
+			end
+			
+			def authority?
+				@authority and !@authority.empty?
+			end
+			
 			# Combine this absolute URL with a relative reference according to RFC 3986 Section 5.
 			#
 			# @parameter other [String, Relative, Reference, Absolute] The reference to resolve.
@@ -71,6 +79,29 @@ module Protocol
 				buffer << @scheme << ":" if @scheme
 				buffer << "//" << @authority if @authority
 				super(buffer)
+			end
+			
+			UNSPECIFIED = Object.new
+			
+			# Create a new Absolute URL with modified components.
+			#
+			# @parameter scheme [String, nil] The scheme to use (nil to remove scheme).
+			# @parameter authority [String, nil] The authority to use (nil to remove authority).
+			# @parameter path [String, nil] The path to merge with the current path.
+			# @parameter query [String, nil] The query string to use.
+			# @parameter fragment [String, nil] The fragment to use.
+			# @parameter pop [Boolean] Whether to pop the last path component before merging.
+			# @returns [Absolute] A new Absolute URL with the modified components.
+			def with(scheme: @scheme, authority: @authority, path: nil, query: @query, fragment: @fragment, pop: true)
+				self.class.new(scheme, authority, Path.expand(@path, path, pop), query, fragment)
+			end
+			
+			def to_ary
+				[@scheme, @authority, @path, @query, @fragment]
+			end
+			
+			def <=>(other)
+				to_ary <=> other.to_ary
 			end
 			
 			def to_s

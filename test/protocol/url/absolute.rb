@@ -22,20 +22,20 @@ describe Protocol::URL::Absolute do
 		expect(result.to_s).to be == "https://cdn.example.com/npm/lit@2.7.5/index.js"
 	end
 	
-	describe "fragment encoding" do
-		it "decodes percent-encoded fragments on parse" do
+	describe "fragment handling" do
+		it "preserves encoded fragments" do
 			url = Protocol::URL["http://example.com/path#hello%20world"]
-			expect(url.fragment).to be == "hello world"
+			expect(url.fragment).to be == "hello%20world"
 			expect(url.to_s).to be == "http://example.com/path#hello%20world"
 		end
 		
-		it "preserves encoded fragments" do
+		it "preserves all encoded characters" do
 			url = Protocol::URL["http://example.com/path#hello%3C%3E"]
-			expect(url.fragment).to be == "hello<>"
+			expect(url.fragment).to be == "hello%3C%3E"
 			expect(url.to_s).to be == "http://example.com/path#hello%3C%3E"
 		end
 		
-		it "does not encode allowed fragment characters" do
+		it "preserves allowed fragment characters" do
 			url = Protocol::URL["http://example.com/path#section/1.2?query"]
 			# / and ? are allowed in fragments per RFC 3986
 			expect(url.fragment).to be == "section/1.2?query"
@@ -72,6 +72,88 @@ describe Protocol::URL::Absolute do
 			expect do
 				base + 123
 			end.to raise_exception(ArgumentError, message: be =~ /Cannot combine/)
+		end
+	end
+	
+	with "#scheme?" do
+		it "returns true when scheme is present" do
+			url = Protocol::URL::Absolute.new("https", "example.com", "/")
+			expect(url).to be(:scheme?)
+		end
+		
+		it "returns false when scheme is nil" do
+			url = Protocol::URL::Absolute.new(nil, "example.com", "/")
+			expect(url).not.to be(:scheme?)
+		end
+	end
+	
+	with "#authority?" do
+		it "returns true when authority is present" do
+			url = Protocol::URL::Absolute.new("https", "example.com", "/")
+			expect(url).to be(:authority?)
+		end
+		
+		it "returns false when authority is nil" do
+			url = Protocol::URL::Absolute.new("https", nil, "/path")
+			expect(url).not.to be(:authority?)
+		end
+	end
+	
+	with "#with" do
+		it "updates scheme" do
+			base = Protocol::URL::Absolute.new("http", "example.com", "/")
+			updated = base.with(scheme: "https")
+			expect(updated.scheme).to be == "https"
+		end
+		
+		it "updates authority" do
+			base = Protocol::URL::Absolute.new("https", "example.com", "/")
+			updated = base.with(authority: "other.com")
+			expect(updated.authority).to be == "other.com"
+		end
+		
+		it "merges path" do
+			base = Protocol::URL::Absolute.new("https", "example.com", "/api")
+			updated = base.with(path: "users")
+			expect(updated.path).to be == "/users"
+		end
+		
+		it "updates query" do
+			base = Protocol::URL::Absolute.new("https", "example.com", "/", "q=ruby")
+			updated = base.with(query: "q=python")
+			expect(updated.query).to be == "q=python"
+		end
+		
+		it "updates fragment" do
+			base = Protocol::URL::Absolute.new("https", "example.com", "/", nil, "intro")
+			updated = base.with(fragment: "advanced")
+			expect(updated.fragment).to be == "advanced"
+		end
+		
+		it "preserves existing values when not specified" do
+			base = Protocol::URL::Absolute.new("https", "example.com", "/path", "q=test", "section")
+			updated = base.with(path: "other")
+			expect(updated.scheme).to be == "https"
+			expect(updated.authority).to be == "example.com"
+			expect(updated.query).to be == "q=test"
+			expect(updated.fragment).to be == "section"
+		end
+	end
+	
+	with "#to_ary" do
+		it "returns array representation" do
+			url = Protocol::URL::Absolute.new("https", "example.com", "/path", "q=test", "section")
+			expect(url.to_ary).to be == ["https", "example.com", "/path", "q=test", "section"]
+		end
+	end
+	
+	with "#<=>" do
+		it "compares URLs" do
+			url1 = Protocol::URL::Absolute.new("https", "a.com", "/")
+			url2 = Protocol::URL::Absolute.new("https", "b.com", "/")
+			expect(url1 <=> url2).to be == -1
+			expect(url2 <=> url1).to be == 1
+			expect(url1 <=> url1).to be == 0
 		end
 	end
 end

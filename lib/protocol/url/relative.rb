@@ -10,6 +10,8 @@ module Protocol
 	module URL
 		# Represents a relative URL, which does not include a scheme or authority.
 		class Relative
+			include Comparable
+			
 			def initialize(path, query = nil, fragment = nil)
 				@path = path.to_s
 				@query = query
@@ -19,6 +21,16 @@ module Protocol
 			attr :path
 			attr :query
 			attr :fragment
+			
+			# @returns [Boolean] If there is a query string.
+			def query?
+				@query and !@query.empty?
+			end
+			
+			# @returns [Boolean] If there is a fragment.
+			def fragment?
+				@fragment and !@fragment.empty?
+			end
 			
 			# Combine this relative URL with another URL or path.
 			#
@@ -45,24 +57,39 @@ module Protocol
 				end
 			end
 			
-			private def append_query(buffer = String.new)
-				if @query and !@query.empty?
-					buffer << "?" << @query
-				end
-				return buffer
+			# Create a new Relative URL with modified components.
+			#
+			# @parameter path [String, nil] The path to merge with the current path.
+			# @parameter query [String, nil] The query string to use.
+			# @parameter fragment [String, nil] The fragment to use.
+			# @parameter pop [Boolean] Whether to pop the last path component before merging.
+			# @returns [Relative] A new Relative URL with the modified components.
+			def with(path: nil, query: @query, fragment: @fragment, pop: true)
+				self.class.new(Path.expand(@path, path, pop), query, fragment)
 			end
 			
 			# Append the relative URL to the given buffer.
+			# The path, query, and fragment are expected to already be properly encoded.
 			def append(buffer = String.new)
-				buffer << Encoding.escape_path(@path)
+				buffer << @path
 				
-				append_query(buffer)
+				if @query and !@query.empty?
+					buffer << "?" << @query
+				end
 				
 				if @fragment and !@fragment.empty?
-					buffer << "#" << Encoding.escape_fragment(@fragment)
+					buffer << "#" << @fragment
 				end
 				
 				return buffer
+			end
+			
+			def to_ary
+				[@path, @query, @fragment]
+			end
+			
+			def <=>(other)
+				to_ary <=> other.to_ary
 			end
 			
 			def to_s

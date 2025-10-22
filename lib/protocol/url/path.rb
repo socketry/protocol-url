@@ -63,7 +63,7 @@ module Protocol
 			# @parameter pop [Boolean] whether to remove the last path component of the base path, to conform to URI merging behaviour, as defined by RFC2396.
 			def self.expand(base, relative, pop = true)
 				# Empty relative path means no change:
-				return base if relative.empty?
+				return base if relative.nil? || relative.empty?
 				
 				components = split(base)
 				
