@@ -7,15 +7,15 @@ require "protocol/url"
 
 describe Protocol::URL::Absolute do
 	it "creates an absolute URL" do
-		url = Protocol::URL::Absolute.new("https", "//cdn.example.com", "/npm/")
+		url = Protocol::URL::Absolute.new("https", "cdn.example.com", "/npm/")
 		expect(url.scheme).to be == "https"
-		expect(url.authority).to be == "//cdn.example.com"
+		expect(url.authority).to be == "cdn.example.com"
 		expect(url.path).to be == "/npm/"
 		expect(url.to_s).to be == "https://cdn.example.com/npm/"
 	end
 	
 	it "concatenates with a relative path" do
-		base = Protocol::URL::Absolute.new("https", "//cdn.example.com", "/npm/")
+		base = Protocol::URL::Absolute.new("https", "cdn.example.com", "/npm/")
 		relative = Protocol::URL::Relative.new("lit@2.7.5/index.js")
 		result = base + relative
 		expect(result).to be_a(Protocol::URL::Absolute)
@@ -45,30 +45,30 @@ describe Protocol::URL::Absolute do
 	
 	with "#+" do
 		it "returns other when adding Absolute with scheme" do
-			base = Protocol::URL::Absolute.new("https", "//example.com", "/path")
-			other = Protocol::URL::Absolute.new("http", "//other.com", "/other")
+			base = Protocol::URL::Absolute.new("https", "example.com", "/path")
+			other = Protocol::URL::Absolute.new("http", "other.com", "/other")
 			result = base + other
 			expect(result).to be_equal(other)
 		end
 		
 		it "handles protocol-relative Absolute URL" do
-			base = Protocol::URL::Absolute.new("https", "//example.com", "/path")
-			other = Protocol::URL::Absolute.new(nil, "//cdn.example.com", "/lib.js")
+			base = Protocol::URL::Absolute.new("https", "example.com", "/path")
+			other = Protocol::URL::Absolute.new(nil, "cdn.example.com", "/lib.js")
 			result = base + other
 			expect(result.scheme).to be == "https"
-			expect(result.authority).to be == "//cdn.example.com"
+			expect(result.authority).to be == "cdn.example.com"
 			expect(result.path).to be == "/lib.js"
 		end
 		
 		it "handles Reference argument" do
-			base = Protocol::URL::Absolute.new("https", "//example.com", "/path")
+			base = Protocol::URL::Absolute.new("https", "example.com", "/path")
 			reference = Protocol::URL::Reference.new("other.html", nil, nil, nil)
 			result = base + reference
 			expect(result.path).to be == "/other.html"
 		end
 		
 		it "raises error for invalid type" do
-			base = Protocol::URL::Absolute.new("https", "//example.com", "/path")
+			base = Protocol::URL::Absolute.new("https", "example.com", "/path")
 			expect do
 				base + 123
 			end.to raise_exception(ArgumentError, message: be =~ /Cannot combine/)

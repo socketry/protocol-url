@@ -69,7 +69,7 @@ module Protocol
 			# Append the absolute URL to the given buffer.
 			def append(buffer = String.new)
 				buffer << @scheme << ":" if @scheme
-				buffer << @authority if @authority
+				buffer << "//" << @authority if @authority
 				super(buffer)
 			end
 			

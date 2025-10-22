@@ -38,6 +38,9 @@ module Protocol
 					query = match[:query]
 					fragment = match[:fragment]
 					
+					# Strip the "//" prefix from authority
+					authority = authority[2..-1] if authority
+					
 					# Decode the fragment if present
 					fragment = Encoding.unescape(fragment) if fragment
 					

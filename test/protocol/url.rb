@@ -11,7 +11,7 @@ describe Protocol::URL do
 			url = Protocol::URL["https://cdn.example.com/npm/"]
 			expect(url).to be_a(Protocol::URL::Absolute)
 			expect(url.scheme).to be == "https"
-			expect(url.authority).to be == "//cdn.example.com"
+			expect(url.authority).to be == "cdn.example.com"
 			expect(url.path).to be == "/npm/"
 		end
 		
@@ -19,7 +19,7 @@ describe Protocol::URL do
 			url = Protocol::URL["//cdn.example.com/npm/"]
 			expect(url).to be_a(Protocol::URL::Absolute)
 			expect(url.scheme).to be == nil
-			expect(url.authority).to be == "//cdn.example.com"
+			expect(url.authority).to be == "cdn.example.com"
 			expect(url.path).to be == "/npm/"
 		end
 		
