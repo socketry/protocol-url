@@ -234,4 +234,69 @@ describe Protocol::URL::Reference do
 			expect(subject.to_s).to be == "foo#frag"
 		end
 	end
+	
+	with "#parse_query!" do
+		it "parses query string into parameters" do
+			reference = subject.parse("/path?foo=bar&baz=qux")
+			
+			expect(reference.query).to be == "foo=bar&baz=qux"
+			expect(reference.parameters).to be_nil
+			
+			result = reference.parse_query!
+			
+			expect(result).to be == {"foo" => "bar", "baz" => "qux"}
+			expect(reference.query).to be_nil
+			expect(reference.parameters).to be == {"foo" => "bar", "baz" => "qux"}
+		end
+		
+		it "merges parsed query with existing parameters" do
+			reference = subject.parse("/path?foo=bar&baz=qux", {x: 10, y: 20})
+			
+			expect(reference.query).to be == "foo=bar&baz=qux"
+			expect(reference.parameters).to be == {x: 10, y: 20}
+			
+			result = reference.parse_query!
+			
+			expect(result).to be == {x: 10, y: 20, "foo" => "bar", "baz" => "qux"}
+			expect(reference.query).to be_nil
+			expect(reference.parameters).to be == {x: 10, y: 20, "foo" => "bar", "baz" => "qux"}
+		end
+		
+		it "handles empty query string" do
+			reference = subject.parse("/path", {x: 10})
+			
+			expect(reference.query).to be_nil
+			expect(reference.parameters).to be == {x: 10}
+			
+			result = reference.parse_query!
+			
+			expect(result).to be == {x: 10}
+			expect(reference.query).to be_nil
+			expect(reference.parameters).to be == {x: 10}
+		end
+		
+		it "handles no existing parameters" do
+			reference = subject.parse("/path?foo=bar")
+			
+			expect(reference.query).to be == "foo=bar"
+			expect(reference.parameters).to be_nil
+			
+			result = reference.parse_query!
+			
+			expect(result).to be == {"foo" => "bar"}
+			expect(reference.parameters).to be == {"foo" => "bar"}
+		end
+		
+		it "updates to_s output after parsing" do
+			reference = subject.parse("/path?foo=bar&baz=qux")
+			expect(reference.to_s).to be == "/path?foo=bar&baz=qux"
+			
+			reference.parse_query!
+			# Parameters are now in a hash, so order may differ
+			result = reference.to_s
+			expect(result).to be(:include?, "foo=bar")
+			expect(result).to be(:include?, "baz=qux")
+			expect(result).to be(:start_with?, "/path?")
+		end
+	end
 end

@@ -4,11 +4,14 @@
 # Copyright, 2025, by Samuel Williams.
 
 require_relative "encoding"
+require_relative "relative"
 
 module Protocol
 	module URL
-		# A relative reference, excluding any authority. The path part of an HTTP request.
-		class Reference
+		# Represents a "Hypertext Reference", which may include a path, query string, fragment, and user parameters.
+		#
+		# This class is designed to be easy to manipulate and combine URL references, following the rules specified in RFC2396, while supporting standard URL encoded parameters. In other words, it gives extended meaning to query strings by allowing user parameters to be specified as a hash.
+		class Reference < Relative
 			include Comparable
 			
 			# Generate a reference from a path and user parameters. The path may contain a `#fragment` or `?query=parameters`.
@@ -21,25 +24,11 @@ module Protocol
 			
 			# Initialize the reference.
 			#
-			# @parameter path [String] The path component, e.g. `/foo/bar/index.html`.
-			# @parameter query [String | Nil] The un-parsed query string, e.g. 'x=10&y=20'.
-			# @parameter fragment [String | Nil] The fragment, the part after the '#'.
 			# @parameter parameters [Hash | Nil] User supplied parameters that will be appended to the query part.
 			def initialize(path = "/", query = nil, fragment = nil, parameters = nil)
-				@path = path
-				@query = query
-				@fragment = fragment
+				super(path, query, fragment)
 				@parameters = parameters
 			end
-			
-			# @attribute [String] The path component, e.g. `/foo/bar/index.html`.
-			attr :path
-			
-			# @attribute [String] The un-parsed query string, e.g. 'x=10&y=20'.
-			attr :query
-			
-			# @attribute [String] The fragment, the part after the '#'.
-			attr :fragment
 			
 			# @attribute [Hash] User supplied parameters that will be appended to the query part.
 			attr :parameters
@@ -50,9 +39,6 @@ module Protocol
 			def freeze
 				return self if frozen?
 				
-				@path.freeze
-				@query.freeze
-				@fragment.freeze
 				@parameters.freeze
 				
 				super
@@ -90,22 +76,30 @@ module Protocol
 				@parameters and !@parameters.empty?
 			end
 			
+			# Parse the query string into parameters and merge with existing parameters.
+			#
+			# Afterwards, the `query` attribute will be cleared.
+			#
+			# @returns [Hash] The merged parameters.
+			def parse_query!(encoding = Encoding)
+				if @query and !@query.empty?
+					parsed = encoding.decode(@query)
+					
+					if @parameters
+						@parameters = @parameters.merge(parsed)
+					else
+						@parameters = parsed
+					end
+					
+					@query = nil
+				end
+				
+				return @parameters
+			end
+			
 			# @returns [Boolean] Whether the reference has a query string.
 			def query?
 				@query and !@query.empty?
-			end
-			
-			# @returns [String | Nil] The full query string, combining the original query and encoded parameters.
-			def full_query
-				if query? && parameters?
-					[@query, Encoding.encode(@parameters)].join("&")
-				elsif query?
-					@query
-				elsif parameters?
-					Encoding.encode(@parameters)
-				else
-					nil
-				end
 			end
 			
 			# @returns [Boolean] Whether the reference has a fragment.
@@ -114,27 +108,15 @@ module Protocol
 			end
 			
 			# Append the reference to the given buffer.
-			def append(buffer = String.new)
-				if query?
-					buffer << Encoding.escape_path(@path) << "?" << @query
+			private def append_query(buffer = String.new)
+				if @query and !@query.empty?
+					buffer << "?" << @query
 					buffer << "&" << Encoding.encode(@parameters) if parameters?
-				else
-					buffer << Encoding.escape_path(@path)
-					buffer << "?" << Encoding.encode(@parameters) if parameters?
-				end
-				
-				if fragment?
-					buffer << "#" << Encoding.escape_fragment(@fragment)
+				elsif parameters?
+					buffer << "?" << Encoding.encode(@parameters)
 				end
 				
 				return buffer
-			end
-			
-			# Convert the reference to a string, e.g. `/foo/bar/index.html?x=10&y=20#section`
-			#
-			# @returns [String] The reference as a string.
-			def to_s
-				append
 			end
 			
 			# Merges two references as specified by RFC2396, similar to `URI.join`.
@@ -196,64 +178,6 @@ module Protocol
 				end
 				
 				self.class.new(path, query, fragment, parameters)
-			end
-			
-			private
-			
-			def split(path)
-				if path.empty?
-					[path]
-				else
-					path.split("/", -1)
-				end
-			end
-			
-			def expand_parts(path, parts)
-				parts.each do |part|
-					if part == "."
-						# No-op (ignore current directory)
-					elsif part == ".." and path.last and path.last != ".."
-						if path.last != ""
-							# We can go up one level:
-							path.pop
-						end
-					else
-						path << part
-					end
-				end
-			end
-			
-			# @parameter pop [Boolean] whether to remove the last path component of the base path, to conform to URI merging behaviour, as defined by RFC2396.
-			def expand_path(base, relative, pop = true)
-				if relative.start_with? "/"
-					return relative
-				end
-				
-				path = split(base)
-				
-				# RFC2396 Section 5.2:
-				# 6) a) All but the last segment of the base URI's path component is
-				# copied to the buffer.  In other words, any characters after the
-				# last (right-most) slash character, if any, are excluded.
-				#
-				# NOTE: Since ".." and "." are considered special path segments with
-				# navigational meaning, we treat them intuitively: if the last segment
-				# is ".." we don't pop it, as it's a navigation instruction rather than
-				# a filename. This provides more intuitive behavior when combining relative
-				# paths, which is not explicitly defined by the RFC.
-				if (pop or path.last == "") and path.last != ".." and path.last != "."
-					path.pop
-				end
-				
-				parts = split(relative)
-				expand_parts(path, parts)
-				
-				# Ensure absolute paths start with "":
-				if path.first != "" and base.start_with?("/")
-					path.unshift("")
-				end
-				
-				return path.join("/")
 			end
 		end
 	end

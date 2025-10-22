@@ -53,8 +53,6 @@ module Protocol
 				end
 			when Relative
 				value
-			when Reference
-				Relative.new(value.path, value.full_query, value.fragment)
 			when nil
 				nil
 			else
