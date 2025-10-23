@@ -10,7 +10,9 @@ module Protocol
 	module URL
 		# Represents a "Hypertext Reference", which may include a path, query string, fragment, and user parameters.
 		#
-		# This class is designed to be easy to manipulate and combine URL references, following the rules specified in RFC2396, while supporting standard URL encoded parameters. In other words, it gives extended meaning to query strings by allowing user parameters to be specified as a hash.
+		# This class is designed to be easy to manipulate and combine URL references, following the rules specified in RFC2396, while supporting standard URL encoded parameters.
+		#
+		# Use {parse} for external/untrusted data, and {new} for constructing references from known good values.
 		class Reference < Relative
 			include Comparable
 			
@@ -32,20 +34,40 @@ module Protocol
 						raise ArgumentError, "Invalid URL (contains whitespace or control characters): #{value.inspect}"
 					end
 				when Relative
-					self.new(value.path, value.query, value.fragment, parameters)
+					# Relative stores encoded values, so we need to unescape them for Reference
+					path = value.path
+					fragment = value.fragment
+					
+					path = Encoding.unescape(path) if path && !path.empty?
+					fragment = Encoding.unescape(fragment) if fragment
+					
+					self.new(path, value.query, fragment, parameters)
 				when nil
 					nil
 				else
 					raise ArgumentError, "Cannot coerce #{value.inspect} to Reference!"
 				end
 			end			# Generate a reference from a path and user parameters. The path may contain a `#fragment` or `?query=parameters`.
+			#
+			# @example Parse a path with query and fragment.
+			# 	reference = Reference.parse("/search?query=ruby#results")
+			# 	reference.path      # => "/search"
+			# 	reference.query     # => "query=ruby"
+			# 	reference.fragment  # => "results"
 			def self.parse(value = "/", parameters = nil)
 				self.[](value, parameters)
 			end
 			
-			# Initialize the reference.
+			# Initialize the reference with raw, unescaped values.
 			#
-			# @parameter parameters [Hash | Nil] User supplied parameters that will be appended to the query part.
+			# @parameter path [String] The unescaped path.
+			# @parameter query [String | Nil] An already-formatted query string.
+			# @parameter fragment [String | Nil] The unescaped fragment.
+			# @parameter parameters [Hash | Nil] User supplied parameters that will be safely encoded.
+			#
+			# @example Create a reference with parameters.
+			# 	reference = Reference.new("/search", nil, nil, {"query" => "ruby", "limit" => "10"})
+			# 	reference.to_s  # => "/search?query=ruby&limit=10"
 			def initialize(path = "/", query = nil, fragment = nil, parameters = nil)
 				super(path, query, fragment)
 				@parameters = parameters
@@ -153,15 +175,31 @@ module Protocol
 				self.class.new(@path, nil, nil, nil)
 			end
 			
-			# Update the reference with the given path, parameters and fragment.
+			# Update the reference with the given path, query, fragment, and parameters.
 			#
 			# @parameter path [String] Append the string to this reference similar to `File.join`.
-			# @parameter parameters [Hash] Append the parameters to this reference.
-			# @parameter fragment [String] Set the fragment to this value.
+			# @parameter query [String | Nil] Replace the query string. Defaults to keeping the existing query if not specified.
+			# @parameter fragment [String | Nil] Replace the fragment. Defaults to keeping the existing fragment if not specified.
+			# @parameter parameters [Hash | false] Parameters to merge or replace. Pass `false` (default) to keep existing parameters.
 			# @parameter pop [Boolean] If the path contains a trailing filename, pop the last component of the path before appending the new path.
-			# @parameter merge [Boolean] If the parameters are specified, merge them with the existing parameters, otherwise replace them (including query string).
-			def with(path: nil, query: @query, fragment: @fragment, parameters: false, pop: false, merge: true)
+			# @parameter merge [Boolean] Controls how parameters are handled. When `true` (default), new parameters are merged with existing ones and query is kept. When `false` and new parameters are provided, parameters replace existing ones and query is cleared. Explicitly passing `query:` always overrides this behavior.
+			#
+			# @example Merge parameters.
+			# 	reference = Reference.new("/search", nil, nil, {"query" => "ruby"})
+			# 	updated = reference.with(parameters: {"limit" => "10"})
+			# 	updated.to_s  # => "/search?query=ruby&limit=10"
+			#
+			# @example Replace parameters.
+			# 	reference = Reference.new("/search", nil, nil, {"query" => "ruby"})
+			# 	updated = reference.with(parameters: {"query" => "python"}, merge: false)
+			# 	updated.to_s  # => "/search?query=python"
+			def with(path: nil, query: false, fragment: @fragment, parameters: false, pop: false, merge: true)
 				if merge
+					# If merging, we keep existing query unless explicitly overridden:
+					if query == false
+						query = @query
+					end
+					
 					# Merge mode: combine new parameters with existing, keep query:
 					# parameters = (@parameters || {}).merge(parameters || {})
 					if @parameters
@@ -178,9 +216,16 @@ module Protocol
 					if parameters == false
 						# No new parameters provided, keep existing:
 						parameters = @parameters
+						
+						# Also keep query if not explicitly specified:
+						if query == false
+							query = @query
+						end
 					else
-						# New parameters provided, replace and clear query:
-						query = nil
+						# New parameters provided, clear query unless explicitly specified:
+						if query == false
+							query = nil
+						end
 					end
 				end
 				

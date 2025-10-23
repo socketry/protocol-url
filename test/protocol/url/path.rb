@@ -395,4 +395,94 @@ describe Protocol::URL::Path do
 			end
 		end
 	end
+	
+	with ".to_local_path" do
+		it "converts simple absolute path" do
+			result = Protocol::URL::Path.to_local_path("/documents/report.pdf")
+			expect(result).to be == "/documents/report.pdf"
+		end
+		
+		it "converts simple relative path" do
+			result = Protocol::URL::Path.to_local_path("documents/report.pdf")
+			expect(result).to be == "documents/report.pdf"
+		end
+		
+		it "unescapes percent-encoded characters" do
+			result = Protocol::URL::Path.to_local_path("/files/My%20Document.txt")
+			expect(result).to be == "/files/My Document.txt"
+		end
+		
+		it "unescapes unicode characters" do
+			result = Protocol::URL::Path.to_local_path("/files/%E2%9D%A4%EF%B8%8F.txt")
+			expect(result).to be == "/files/❤️.txt"
+		end
+		
+		it "preserves empty path" do
+			result = Protocol::URL::Path.to_local_path("")
+			expect(result).to be == ""
+		end
+		
+		it "converts root path" do
+			result = Protocol::URL::Path.to_local_path("/")
+			expect(result).to be == "/"
+		end
+		
+		it "handles path with trailing slash" do
+			result = Protocol::URL::Path.to_local_path("/documents/folder/")
+			expect(result).to be == "/documents/folder/"
+		end
+		
+		with "security: encoded path separators" do
+			it "preserves %2F (encoded forward slash)" do
+				# %2F is the encoded form of /
+				# Preserving it prevents creating additional path components
+				result = Protocol::URL::Path.to_local_path("/folder/safe%2Fname/file.txt")
+				expect(result).to be == "/folder/safe%2Fname/file.txt"
+			end
+			
+			it "preserves %5C (encoded backslash)" do
+				# %5C is the encoded form of \
+				# Preserving it prevents creating path separators on Windows
+				result = Protocol::URL::Path.to_local_path("/folder/name%5Cfile.txt")
+				expect(result).to be == "/folder/name%5Cfile.txt"
+			end
+			
+			it "preserves multiple encoded separators" do
+				# Multiple %2F should all be preserved
+				result = Protocol::URL::Path.to_local_path("/a%2Fb%2Fc/d.txt")
+				expect(result).to be == "/a%2Fb%2Fc/d.txt"
+			end
+			
+			it "preserves encoded separators while decoding other characters" do
+				# %20 (space) should be decoded, %2F should be preserved
+				result = Protocol::URL::Path.to_local_path("/folder/My%20File%2Fname.txt")
+				expect(result).to be == "/folder/My File%2Fname.txt"
+			end
+			
+			it "allows encoded dots (not path traversal when literal)" do
+				# %2E is the encoded form of .
+				# Two of them (%2E%2E) as literal characters are fine - they're not ".."
+				result = Protocol::URL::Path.to_local_path("/folder/%2E%2E/file.txt")
+				expect(result).to be == "/folder/../file.txt"
+			end
+		end
+		
+		with "edge cases" do
+			it "handles multiple consecutive slashes" do
+				# Multiple slashes create empty components, File.join collapses them
+				result = Protocol::URL::Path.to_local_path("/a//b///c")
+				expect(result).to be == "/a/b/c"
+			end
+			
+			it "handles special characters in filenames" do
+				result = Protocol::URL::Path.to_local_path("/files/name%21%40%23.txt")
+				expect(result).to be == "/files/name!@#.txt"
+			end
+			
+			it "handles mixed encoded and unencoded" do
+				result = Protocol::URL::Path.to_local_path("/files/My%20Documents/file.txt")
+				expect(result).to be == "/files/My Documents/file.txt"
+			end
+		end
+	end
 end

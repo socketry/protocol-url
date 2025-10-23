@@ -22,6 +22,10 @@ module Protocol
 			attr :query
 			attr :fragment
 			
+			def to_local_path
+				Path.to_local_path(@path)
+			end
+			
 			# @returns [Boolean] If there is a query string.
 			def query?
 				@query and !@query.empty?
@@ -36,6 +40,18 @@ module Protocol
 			#
 			# @parameter other [String, Absolute, Relative] The URL or path to combine.
 			# @returns [Absolute, Relative] The combined URL.
+			#
+			# @example Combine two relative paths.
+			# 	base = Relative.new("/documents/reports/")
+			# 	other = Relative.new("invoices/2024.pdf")
+			# 	result = base + other
+			# 	result.path  # => "/documents/reports/invoices/2024.pdf"
+			#
+			# @example Navigate to parent directory.
+			# 	base = Relative.new("/documents/reports/archive/")
+			# 	other = Relative.new("../../summary.pdf")
+			# 	result = base + other
+			# 	result.path  # => "/documents/summary.pdf"
 			def +(other)
 				case other
 				when Absolute
@@ -64,8 +80,39 @@ module Protocol
 			# @parameter fragment [String, nil] The fragment to use.
 			# @parameter pop [Boolean] Whether to pop the last path component before merging.
 			# @returns [Relative] A new Relative URL with the modified components.
+			#
+			# @example Update the query string.
+			# 	url = Relative.new("/search", "query=ruby")
+			# 	updated = url.with(query: "query=python")
+			# 	updated.to_s  # => "/search?query=python"
+			#
+			# @example Append to the path.
+			# 	url = Relative.new("/documents/")
+			# 	updated = url.with(path: "report.pdf", pop: false)
+			# 	updated.to_s  # => "/documents/report.pdf"
 			def with(path: nil, query: @query, fragment: @fragment, pop: true)
 				self.class.new(Path.expand(@path, path, pop), query, fragment)
+			end
+			
+			# Normalize the path by resolving "." and ".." segments and removing duplicate slashes.
+			#
+			# This modifies the URL in-place by simplifying the path component:
+			# - Removes "." segments (current directory)
+			# - Resolves ".." segments (parent directory)
+			# - Collapses multiple consecutive slashes to single slashes (except at start)
+			#
+			# @returns [self] The normalized URL.
+			#
+			# @example Basic normalization
+			#   url = Relative.new("/foo//bar/./baz/../qux")
+			#   url.normalize!
+			#   url.path  # => "/foo/bar/qux"
+			def normalize!
+				components = Path.split(@path)
+				normalized = Path.simplify(components)
+				@path = Path.join(normalized)
+				
+				return self
 			end
 			
 			# Append the relative URL to the given buffer.

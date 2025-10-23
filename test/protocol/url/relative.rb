@@ -125,4 +125,78 @@ describe Protocol::URL::Relative do
 			expect(url1 <=> url1).to be == 0
 		end
 	end
+	
+	with "#normalize!" do
+		it "removes dot segments" do
+			url = Protocol::URL::Relative.new("/foo/./bar")
+			url.normalize!
+			expect(url.path).to be == "/foo/bar"
+		end
+		
+		it "resolves parent directory segments" do
+			url = Protocol::URL::Relative.new("/foo/bar/../baz")
+			url.normalize!
+			expect(url.path).to be == "/foo/baz"
+		end
+		
+		it "collapses multiple slashes" do
+			url = Protocol::URL::Relative.new("/foo//bar///baz")
+			url.normalize!
+			expect(url.path).to be == "/foo/bar/baz"
+		end
+		
+		it "handles complex paths" do
+			url = Protocol::URL::Relative.new("/foo//bar/./baz/../qux")
+			url.normalize!
+			expect(url.path).to be == "/foo/bar/qux"
+		end
+		
+		it "preserves trailing slash" do
+			url = Protocol::URL::Relative.new("/foo/bar/")
+			url.normalize!
+			expect(url.path).to be == "/foo/bar/"
+		end
+		
+		it "handles relative paths" do
+			url = Protocol::URL::Relative.new("foo/bar/../baz")
+			url.normalize!
+			expect(url.path).to be == "foo/baz"
+		end
+		
+		it "returns self" do
+			url = Protocol::URL::Relative.new("/foo/bar")
+			result = url.normalize!
+			expect(result).to be_equal(url)
+		end
+		
+		it "preserves query and fragment" do
+			url = Protocol::URL::Relative.new("/foo//bar", "q=test", "section")
+			url.normalize!
+			expect(url.path).to be == "/foo/bar"
+			expect(url.query).to be == "q=test"
+			expect(url.fragment).to be == "section"
+		end
+	end
+	
+	with "#to_local_path" do
+		it "converts path to local file system path" do
+			url = Protocol::URL::Relative.new("/documents/report.pdf")
+			expect(url.to_local_path).to be == "/documents/report.pdf"
+		end
+		
+		it "handles percent-encoded characters" do
+			url = Protocol::URL::Relative.new("/files/My%20Document.txt")
+			expect(url.to_local_path).to be == "/files/My Document.txt"
+		end
+		
+		it "handles unicode characters" do
+			url = Protocol::URL::Relative.new("/files/%E2%9D%A4%EF%B8%8F.txt")
+			expect(url.to_local_path).to be == "/files/❤️.txt"
+		end
+		
+		it "preserves encoded path separators" do
+			url = Protocol::URL::Relative.new("/safe%2Fname/file.txt")
+			expect(url.to_local_path).to be == "/safe%2Fname/file.txt"
+		end
+	end
 end

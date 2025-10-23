@@ -18,6 +18,14 @@ module Protocol
 			#
 			# @parameter path [String] The path to split.
 			# @returns [Array(String)] The path components.
+			#
+			# @example Split an absolute path.
+			# 	Path.split("/documents/report.pdf")
+			# 	# => ["", "documents", "report.pdf"]
+			#
+			# @example Split a relative path.
+			# 	Path.split("images/logo.png")
+			# 	# => ["images", "logo.png"]
 			def self.split(path)
 				return path.split("/", -1)
 			end
@@ -26,6 +34,14 @@ module Protocol
 			#
 			# @parameter components [Array(String)] The path components to join.
 			# @returns [String] The joined path.
+			#
+			# @example Join absolute path components.
+			# 	Path.join(["", "documents", "report.pdf"])
+			# 	# => "/documents/report.pdf"
+			#
+			# @example Join relative path components.
+			# 	Path.join(["images", "logo.png"])
+			# 	# => "images/logo.png"
 			def self.join(components)
 				return components.join("/")
 			end
@@ -34,6 +50,14 @@ module Protocol
 			#
 			# @parameter components [Array(String)] The path components to simplify.
 			# @returns [Array(String)] The simplified path components.
+			#
+			# @example Resolve parent directory references.
+			# 	Path.simplify(["documents", "reports", "..", "invoices", "2024.pdf"])
+			# 	# => ["documents", "invoices", "2024.pdf"]
+			#
+			# @example Remove current directory references.
+			# 	Path.simplify(["documents", ".", "report.pdf"])
+			# 	# => ["documents", "report.pdf"]
 			def self.simplify(components)
 				output = []
 				
@@ -61,6 +85,14 @@ module Protocol
 			end
 			
 			# @parameter pop [Boolean] whether to remove the last path component of the base path, to conform to URI merging behaviour, as defined by RFC2396.
+			#
+			# @example Expand a relative path against a base path.
+			# 	Path.expand("/documents/reports/", "invoices/2024.pdf")
+			# 	# => "/documents/reports/invoices/2024.pdf"
+			#
+			# @example Navigate to parent directory.
+			# 	Path.expand("/documents/reports/2024/", "../summary.pdf")
+			# 	# => "/documents/reports/summary.pdf"
 			def self.expand(base, relative, pop = true)
 				# Empty relative path means no change:
 				return base if relative.nil? || relative.empty?
@@ -85,6 +117,38 @@ module Protocol
 				end
 				
 				return join(simplify(components))
+			end
+			
+			# Convert a URL path to a local file system path using the platform's file separator.
+			#
+			# This method splits the URL path on `/` characters, unescapes each component using
+			# {Encoding.unescape_path} (which preserves encoded separators), then joins the
+			# components using `File.join`.
+			#
+			# Percent-encoded path separators (`%2F` for `/` and `%5C` for `\`) are NOT decoded,
+			# preventing them from being interpreted as directory boundaries. This ensures that
+			# URL path components map directly to file system path components.
+			#
+			# @parameter path [String] The URL path to convert (should be percent-encoded).
+			# @returns [String] The local file system path.
+			#
+			# @example Generating local paths.
+			# 	Path.to_local_path("/documents/report.pdf")  # => "/documents/report.pdf"
+			# 	Path.to_local_path("/files/My%20Document.txt")  # => "/files/My Document.txt"
+			#
+			# @example Preserves encoded separators.
+			# 	Path.to_local_path("/folder/safe%2Fname/file.txt")
+			# 	# => "/folder/safe%2Fname/file.txt"
+			# 	# %2F is NOT decoded to prevent creating additional path components
+			def self.to_local_path(path)
+				components = split(path)
+				
+				# Unescape each component, preserving encoded path separators
+				components.map! do |component|
+					Encoding.unescape_path(component)
+				end
+				
+				return File.join(*components)
 			end
 		end
 	end

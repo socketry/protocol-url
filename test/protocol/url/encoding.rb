@@ -24,6 +24,41 @@ describe Protocol::URL::Encoding do
 		it "handles unicode characters" do
 			expect(Protocol::URL::Encoding.unescape("caf%C3%A9")).to be == "café"
 		end
+		
+		it "unescapes path separators" do
+			expect(Protocol::URL::Encoding.unescape("safe%2Fname")).to be == "safe/name"
+			expect(Protocol::URL::Encoding.unescape("name%5Cfile")).to be == "name\\file"
+		end
+	end
+	
+	describe ".unescape_path" do
+		it "unescapes percent-encoded strings" do
+			expect(Protocol::URL::Encoding.unescape_path("hello%20world%21")).to be == "hello world!"
+		end
+		
+		it "handles unicode characters" do
+			expect(Protocol::URL::Encoding.unescape_path("caf%C3%A9")).to be == "café"
+		end
+		
+		it "preserves encoded forward slashes" do
+			expect(Protocol::URL::Encoding.unescape_path("safe%2Fname")).to be == "safe%2Fname"
+		end
+		
+		it "preserves encoded backslashes" do
+			expect(Protocol::URL::Encoding.unescape_path("name%5Cfile")).to be == "name%5Cfile"
+		end
+		
+		it "preserves encoded separators while unescaping other characters" do
+			expect(Protocol::URL::Encoding.unescape_path("My%20File%2Fname")).to be == "My File%2Fname"
+			expect(Protocol::URL::Encoding.unescape_path("folder%5Cname%20with%20spaces")).to be == "folder%5Cname with spaces"
+		end
+		
+		it "handles mixed case encoding for separators" do
+			expect(Protocol::URL::Encoding.unescape_path("file%2fname")).to be == "file%2fname"
+			expect(Protocol::URL::Encoding.unescape_path("file%2Fname")).to be == "file%2Fname"
+			expect(Protocol::URL::Encoding.unescape_path("file%5cname")).to be == "file%5cname"
+			expect(Protocol::URL::Encoding.unescape_path("file%5Cname")).to be == "file%5Cname"
+		end
 	end
 	
 	describe ".escape_path" do
@@ -48,6 +83,48 @@ describe Protocol::URL::Encoding do
 		it "encodes nested parameters" do
 			result = Protocol::URL::Encoding.encode({"user" => {"name" => "Alice"}})
 			expect(result).to be == "user[name]=Alice"
+		end
+	end
+	
+	describe ".assign" do
+		let(:parameters) {Hash.new}
+		
+		it "assigns simple parameters" do
+			keys = Protocol::URL::Encoding.split("foo")
+			Protocol::URL::Encoding.assign(keys, "bar", parameters)
+			expect(parameters).to be == {"foo" => "bar"}
+		end
+		
+		it "assigns array parameters" do
+			keys = Protocol::URL::Encoding.split("tags[]")
+			Protocol::URL::Encoding.assign(keys, "ruby", parameters)
+			Protocol::URL::Encoding.assign(keys, "http", parameters)
+			expect(parameters).to be == {"tags" => ["ruby", "http"]}
+		end
+		
+		it "assigns nested parameters" do
+			keys = Protocol::URL::Encoding.split("user[name]")
+			Protocol::URL::Encoding.assign(keys, "Alice", parameters)
+			expect(parameters).to be == {"user" => {"name" => "Alice"}}
+		end
+		
+		it "assigns array of objects with single property" do
+			keys = Protocol::URL::Encoding.split("items[][name]")
+			Protocol::URL::Encoding.assign(keys, "a", parameters)
+			Protocol::URL::Encoding.assign(keys, "b", parameters)
+			expect(parameters).to be == {"items" => [{"name" => "a"}, {"name" => "b"}]}
+		end
+		
+		it "assigns array of objects with multiple properties" do
+			keys_name = Protocol::URL::Encoding.split("items[][name]")
+			keys_value = Protocol::URL::Encoding.split("items[][value]")
+			
+			Protocol::URL::Encoding.assign(keys_name, "a", parameters)
+			Protocol::URL::Encoding.assign(keys_value, "1", parameters)
+			Protocol::URL::Encoding.assign(keys_name, "b", parameters)
+			Protocol::URL::Encoding.assign(keys_value, "2", parameters)
+			
+			expect(parameters).to be == {"items" => [{"name" => "a", "value" => "1"}, {"name" => "b", "value" => "2"}]}
 		end
 	end
 	

@@ -149,6 +149,27 @@ Protocol::URL::Path.expand("/a/b/file.html", "other.html", false)
 # => "/a/b/file.html/other.html"
 ```
 
+### Converting to Local File System Paths
+
+Convert URL paths to local file system paths safely:
+
+``` ruby
+# Convert URL path to local file system path:
+Protocol::URL::Path.to_local_path("/documents/report.pdf")
+# => "/documents/report.pdf"
+
+# Handles percent-encoded characters:
+Protocol::URL::Path.to_local_path("/files/My%20Document.txt")
+# => "/files/My Document.txt"
+
+# Security: Preserves percent-encoded path separators
+# This prevents directory traversal attacks:
+Protocol::URL::Path.to_local_path("/folder/safe%2Fname/file.txt")
+# => "/folder/safe%2Fname/file.txt"
+# %2F (/) and %5C (\) are NOT decoded, preventing them from creating
+# additional path components in the file system
+```
+
 ## Working with References
 
 {ruby Protocol::URL::Reference} extends relative URLs with query parameters and fragments. For detailed information on working with references, see the [Working with References](../working-with-references/) guide.

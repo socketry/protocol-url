@@ -33,6 +33,18 @@ module Protocol
 			#
 			# @parameter other [String, Relative, Reference, Absolute] The reference to resolve.
 			# @returns [Absolute, String] The resolved absolute URL.
+			#
+			# @example Resolve a relative path.
+			# 	base = Absolute.new("https", "example.com", "/documents/reports/")
+			# 	relative = Relative.new("summary.pdf")
+			# 	result = base + relative
+			# 	result.to_s  # => "https://example.com/documents/reports/summary.pdf"
+			#
+			# @example Navigate to parent directory.
+			# 	base = Absolute.new("https", "example.com", "/documents/reports/2024/")
+			# 	relative = Relative.new("../../archive/")
+			# 	result = base + relative
+			# 	result.to_s  # => "https://example.com/documents/archive/"
 			def +(other)
 				case other
 				when Absolute
@@ -92,6 +104,16 @@ module Protocol
 			# @parameter fragment [String, nil] The fragment to use.
 			# @parameter pop [Boolean] Whether to pop the last path component before merging.
 			# @returns [Absolute] A new Absolute URL with the modified components.
+			#
+			# @example Change the scheme.
+			# 	url = Absolute.new("http", "example.com", "/page")
+			# 	secure = url.with(scheme: "https")
+			# 	secure.to_s  # => "https://example.com/page"
+			#
+			# @example Update the query string.
+			# 	url = Absolute.new("https", "example.com", "/search", "query=ruby")
+			# 	updated = url.with(query: "query=python")
+			# 	updated.to_s  # => "https://example.com/search?query=python"
 			def with(scheme: @scheme, authority: @authority, path: nil, query: @query, fragment: @fragment, pop: true)
 				self.class.new(scheme, authority, Path.expand(@path, path, pop), query, fragment)
 			end

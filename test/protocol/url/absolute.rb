@@ -156,4 +156,22 @@ describe Protocol::URL::Absolute do
 			expect(url1 <=> url1).to be == 0
 		end
 	end
+	
+	with "#to_local_path" do
+		it "converts path to local file system path" do
+			url = Protocol::URL::Absolute.new("https", "example.com", "/documents/report.pdf")
+			expect(url.to_local_path).to be == "/documents/report.pdf"
+		end
+		
+		it "handles percent-encoded characters" do
+			url = Protocol::URL::Absolute.new("https", "example.com", "/files/My%20Document.txt")
+			expect(url.to_local_path).to be == "/files/My Document.txt"
+		end
+		
+		it "only converts the path component" do
+			url = Protocol::URL::Absolute.new("https", "example.com", "/api/users", "page=2", "results")
+			# Query and fragment are not included in local path
+			expect(url.to_local_path).to be == "/api/users"
+		end
+	end
 end

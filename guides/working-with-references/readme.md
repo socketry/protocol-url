@@ -10,7 +10,21 @@ This guide explains how to use {ruby Protocol::URL::Reference} for managing URLs
 
 You can create references in several ways:
 
-### Constructing from Components
+### Parsing External URLs (Untrusted Data)
+
+Use {ruby Protocol::URL.parse} or {ruby Protocol::URL.[]} to parse URL strings from external sources (user input, APIs, web pages). These methods validate and decode the input:
+
+``` ruby
+# Parse a reference with query and fragment:
+reference = Protocol::URL["/api/users?active=true&role=admin#list"]
+reference.path      # => "/api/users"
+reference.query     # => "active=true&role=admin"
+reference.fragment  # => "list"
+```
+
+### Constructing from Known Values (Trusted Data)
+
+Use {ruby Protocol::URL::Reference.new} when you have known good values from your code. This method doesn't validate and expects unencoded values:
 
 ``` ruby
 require "protocol/url"
@@ -23,25 +37,58 @@ reference.to_s  # => "/api/users"
 reference = Protocol::URL::Reference.new("/search", "q=ruby&page=2")
 reference.to_s  # => "/search?q=ruby&page=2"
 
-# Reference with fragment:
-reference = Protocol::URL::Reference.new("/docs", nil, "section-3")
-reference.to_s  # => "/docs#section-3"
-
 # Reference with all components:
 reference = Protocol::URL::Reference.new("/api/users", "status=active", "results")
 reference.to_s  # => "/api/users?status=active#results"
+
+# Using parameters (recommended for query strings):
+reference = Protocol::URL::Reference.new("/search", nil, nil, {q: "ruby", page: 2})
+reference.to_s  # => "/search?q=ruby&page=2"
 ```
 
-### Parsing from Strings
+## Understanding Encoding
 
-Use {ruby Protocol::URL.[]} to parse complete URL strings:
+References use different encoding strategies depending on how they're constructed:
+
+### With parse() - Decodes Input
+
+`parse()` expects already-encoded URLs and decodes them for internal storage:
 
 ``` ruby
-# Parse a reference with query and fragment:
-reference = Protocol::URL["/api/users?active=true&role=admin#list"]
-reference.path      # => "/api/users"
-reference.query     # => "active=true&role=admin"
-reference.fragment  # => "list"
+ref = Protocol::URL::Reference.parse("path%20with%20spaces?foo=bar#frag%20ment")
+ref.path      # => "path with spaces" (decoded)
+ref.fragment  # => "frag ment" (decoded)
+ref.to_s      # => "path%20with%20spaces?foo=bar#frag%20ment" (re-encoded)
+```
+
+### With new() - Expects Unencoded Input
+
+`new()` expects raw, unencoded values and encodes them during output:
+
+``` ruby
+ref = Protocol::URL::Reference.new("path with spaces", "foo=bar", "frag ment")
+ref.path      # => "path with spaces"
+ref.fragment  # => "frag ment"
+ref.to_s      # => "path%20with%20spaces?foo=bar#frag%20ment"
+```
+
+**Warning**: Passing encoded values to `new()` causes double-encoding:
+
+``` ruby
+# Wrong - will double-encode:
+ref = Protocol::URL::Reference.new("path%20with%20spaces")
+ref.to_s  # => "path%2520with%2520spaces" (double-encoded!)
+
+# Correct - use parse() for encoded input:
+ref = Protocol::URL::Reference.parse("path%20with%20spaces")
+ref.to_s  # => "path%20with%20spaces"
+```
+
+Unicode and special characters are handled automatically:
+
+``` ruby
+ref = Protocol::URL::Reference.new("I/❤️/UNICODE")
+ref.to_s  # => "I/%E2%9D%A4%EF%B8%8F/UNICODE"
 ```
 
 ## Accessing Components
@@ -226,6 +273,22 @@ result.to_s  # => "/search?q=ruby&lang=en#result-5"
 - Use {ruby Protocol::URL::Reference} when working with query parameters or fragments
 - Use {ruby Protocol::URL::Relative} for simple path-only URLs
 - Use {ruby Protocol::URL::Absolute} for complete URLs with scheme and host
+
+### parse() vs new()
+
+Choose the right method based on your data source:
+
+- **Use `parse()` or `[]`** for external/untrusted data (user input, URLs from web pages, API responses). These methods validate and decode the URL.
+- **Use `new()`** for known good values from your code. This is more efficient since it skips validation and expects unencoded values.
+
+``` ruby
+# External data - use parse():
+user_input = "/search?q=ruby%20gems"
+reference = Protocol::URL[user_input]  # Validates and decodes
+
+# Internal data - use new():
+reference = Protocol::URL::Reference.new("/api/users", "status=active")  # Direct construction
+```
 
 ### Query String Management
 
