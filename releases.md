@@ -1,6 +1,6 @@
 # Releases
 
-## Unreleased
+## v0.3.0
 
   - Add `relative(target, from)` for computing relative paths between URLs.
 
