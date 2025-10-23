@@ -34,6 +34,18 @@ This project is best served by a collaborative and respectful environment. Treat
 
 Please see the [project releases](https://github.com/socketry/protocol-urlreleases/index) for all releases.
 
+### v0.4.0
+
+  - Add comparison methods to `Protocol::URL::Relative` (and by inheritance to `Protocol::URL::Absolute`):
+      - `#==` for structural equality comparison (compares path, query, fragment components).
+      - `#===` for string equality comparison (enables case statement matching).
+      - `#<=>` for ordering and sorting.
+      - `#hash` for hash key support.
+      - `#equal?` for component-based equality checking.
+  - Add JSON serialization support to `Protocol::URL::Relative`:
+      - `#as_json` returns the string representation.
+      - `#to_json` returns a JSON-encoded string.
+
 ### v0.3.0
 
   - Add `relative(target, from)` for computing relative paths between URLs.
