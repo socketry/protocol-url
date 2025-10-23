@@ -119,6 +119,45 @@ module Protocol
 				return join(simplify(components))
 			end
 			
+			# Calculate the relative path from one absolute path to another.
+			#
+			# This is useful for generating relative URLs from one location to another,
+			# such as creating page-specific import maps or relative links.
+			#
+			# @parameter target [String] The destination path (where you want to go).
+			# @parameter from [String] The source path (where you are starting from).
+			# @returns [String] The relative path from `from` to `target`.
+			#
+			# @example Calculate relative path between pages.
+			# 	Path.relative("/_components/app.js", "/foo/bar/")
+			# 	# => "../../_components/app.js"
+			#
+			# @example Calculate relative path in same directory.
+			# 	Path.relative("/docs/guide.html", "/docs/index.html")
+			# 	# => "guide.html"
+			def self.relative(target, from)
+				target_components = split(target)
+				from_components = split(from)
+				
+				# Remove the last component from 'from' to get the directory
+				from_components = from_components[0...-1] if from_components.size > 0
+				
+				# Find the common prefix
+				common_length = 0
+				[target_components.size, from_components.size].min.times do |i|
+					break if target_components[i] != from_components[i]
+					common_length = i + 1
+				end
+				
+				# Calculate how many levels to go up
+				up_levels = from_components.size - common_length
+				
+				# Build the relative path components
+				relative_components = [".."] * up_levels + target_components[common_length..-1]
+				
+				return join(relative_components)
+			end
+			
 			# Convert a URL path to a local file system path using the platform's file separator.
 			#
 			# This method splits the URL path on `/` characters, unescapes each component using

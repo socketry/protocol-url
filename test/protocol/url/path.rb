@@ -396,6 +396,40 @@ describe Protocol::URL::Path do
 		end
 	end
 	
+	with ".relative" do
+		it "calculates relative path between pages" do
+			expect(Protocol::URL::Path.relative("/_components/app.js", "/foo/bar/")).to be == "../../_components/app.js"
+		end
+		
+		it "calculates relative path in same directory" do
+			expect(Protocol::URL::Path.relative("/docs/guide.html", "/docs/index.html")).to be == "guide.html"
+		end
+		
+		it "calculates relative path from root to subdirectory" do
+			expect(Protocol::URL::Path.relative("/foo/bar/", "/")).to be == "foo/bar/"
+		end
+		
+		it "calculates relative path to parent directory" do
+			expect(Protocol::URL::Path.relative("/docs/", "/docs/api/reference.html")).to be == "../"
+		end
+		
+		it "calculates relative path with multiple levels up" do
+			expect(Protocol::URL::Path.relative("/a/file.txt", "/x/y/z/")).to be == "../../../a/file.txt"
+		end
+		
+		it "calculates relative path with common prefix" do
+			expect(Protocol::URL::Path.relative("/projects/alpha/file.txt", "/projects/beta/")).to be == "../alpha/file.txt"
+		end
+		
+		it "preserves trailing slashes in target" do
+			expect(Protocol::URL::Path.relative("/foo/bar/", "/baz/")).to be == "../foo/bar/"
+		end
+		
+		it "handles target without trailing slash" do
+			expect(Protocol::URL::Path.relative("/foo/bar", "/baz/")).to be == "../foo/bar"
+		end
+	end
+	
 	with ".to_local_path" do
 		it "converts simple absolute path" do
 			result = Protocol::URL::Path.to_local_path("/documents/report.pdf")
