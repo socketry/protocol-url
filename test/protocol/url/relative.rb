@@ -4,6 +4,7 @@
 # Copyright, 2025, by Samuel Williams.
 
 require "protocol/url"
+require "json"
 
 describe Protocol::URL::Relative do
 	it "creates a relative URL" do
@@ -116,6 +117,14 @@ describe Protocol::URL::Relative do
 		end
 	end
 	
+	with "#hash" do
+		it "returns hash based on components" do
+			url1 = Protocol::URL::Relative.new("/path", "q=test", "section")
+			url2 = Protocol::URL::Relative.new("/path", "q=test", "section")
+			expect(url1.hash).to be == url2.hash
+		end
+	end
+	
 	with "#<=>" do
 		it "compares URLs" do
 			url1 = Protocol::URL::Relative.new("/a")
@@ -123,6 +132,55 @@ describe Protocol::URL::Relative do
 			expect(url1 <=> url2).to be == -1
 			expect(url2 <=> url1).to be == 1
 			expect(url1 <=> url1).to be == 0
+		end
+	end
+	
+	with "#==" do
+		it "compares structural equality" do
+			url1 = Protocol::URL::Relative.new("/path", "q=test", "section")
+			url2 = Protocol::URL::Relative.new("/path", "q=test", "section")
+			expect(url1).to be == url2
+		end
+		
+		it "returns false for different URLs" do
+			url1 = Protocol::URL::Relative.new("/path")
+			url2 = Protocol::URL::Relative.new("/other")
+			expect(url1).not.to be == url2
+		end
+	end
+	
+	with "#===" do
+		it "compares string representations" do
+			url = Protocol::URL::Relative.new("/path", "q=test")
+			expect(url === "/path?q=test").to be == true
+		end
+		
+		it "allows string to match URL in case statements" do
+			path = "/docs"
+			url = Protocol::URL::Relative.new("/docs")
+			
+			result = case path
+			when url
+				:match
+			else
+				:no_match
+			end
+			
+			expect(result).to be == :match
+		end
+	end
+	
+	with "#as_json" do
+		it "returns string representation" do
+			url = Protocol::URL::Relative.new("/path", "q=test", "section")
+			expect(url.as_json).to be == "/path?q=test#section"
+		end
+	end
+	
+	with "#to_json" do
+		it "returns JSON string representation" do
+			url = Protocol::URL::Relative.new("/path", "q=test", "section")
+			expect(url.to_json).to be == '"/path?q=test#section"'
 		end
 	end
 	

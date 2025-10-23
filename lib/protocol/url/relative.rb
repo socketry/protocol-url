@@ -135,12 +135,36 @@ module Protocol
 				[@path, @query, @fragment]
 			end
 			
+			def hash
+				to_ary.hash
+			end
+			
+			def equal?(other)
+				to_ary == other.to_ary
+			end
+			
 			def <=>(other)
 				to_ary <=> other.to_ary
 			end
 			
+			def ==(other)
+				to_ary == other.to_ary
+			end
+			
+			def ===(other)
+				to_s === other
+			end
+			
 			def to_s
 				append
+			end
+			
+			def as_json(...)
+				to_s
+			end
+			
+			def to_json(...)
+				as_json.to_json(...)
 			end
 			
 			def inspect

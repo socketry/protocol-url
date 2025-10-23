@@ -95,14 +95,6 @@ module Protocol
 				[@path, @query, @fragment, @parameters]
 			end
 			
-			# Compare two references.
-			#
-			# @parameter other [Reference] The other reference to compare.
-			# @returns [Integer] -1, 0, 1 if the reference is less than, equal to, or greater than the other reference.
-			def <=> other
-				to_ary <=> other.to_ary
-			end
-			
 			# @returns [Boolean] Whether the reference has parameters.
 			def parameters?
 				@parameters and !@parameters.empty?
