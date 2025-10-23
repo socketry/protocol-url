@@ -10,10 +10,24 @@ This guide explains how to use {ruby Protocol::URL::Reference} for managing URLs
 
 You can create references in several ways:
 
-### Constructing from Components
+### Parsing External URLs (Untrusted Data)
 
-~~~ ruby
-require 'protocol/url'
+Use {ruby Protocol::URL.parse} or {ruby Protocol::URL.[]} to parse URL strings from external sources (user input, APIs, web pages). These methods validate and decode the input:
+
+``` ruby
+# Parse a reference with query and fragment:
+reference = Protocol::URL["/api/users?active=true&role=admin#list"]
+reference.path      # => "/api/users"
+reference.query     # => "active=true&role=admin"
+reference.fragment  # => "list"
+```
+
+### Constructing from Known Values (Trusted Data)
+
+Use {ruby Protocol::URL::Reference.new} when you have known good values from your code. This method doesn't validate and expects unencoded values:
+
+``` ruby
+require "protocol/url"
 
 # Reference with path only:
 reference = Protocol::URL::Reference.new("/api/users")
@@ -23,32 +37,65 @@ reference.to_s  # => "/api/users"
 reference = Protocol::URL::Reference.new("/search", "q=ruby&page=2")
 reference.to_s  # => "/search?q=ruby&page=2"
 
-# Reference with fragment:
-reference = Protocol::URL::Reference.new("/docs", nil, "section-3")
-reference.to_s  # => "/docs#section-3"
-
 # Reference with all components:
 reference = Protocol::URL::Reference.new("/api/users", "status=active", "results")
 reference.to_s  # => "/api/users?status=active#results"
-~~~
 
-### Parsing from Strings
+# Using parameters (recommended for query strings):
+reference = Protocol::URL::Reference.new("/search", nil, nil, {q: "ruby", page: 2})
+reference.to_s  # => "/search?q=ruby&page=2"
+```
 
-Use {ruby Protocol::URL.[]} to parse complete URL strings:
+## Understanding Encoding
 
-~~~ ruby
-# Parse a reference with query and fragment:
-reference = Protocol::URL["/api/users?active=true&role=admin#list"]
-reference.path      # => "/api/users"
-reference.query     # => "active=true&role=admin"
-reference.fragment  # => "list"
-~~~
+References use different encoding strategies depending on how they're constructed:
+
+### With parse() - Decodes Input
+
+`parse()` expects already-encoded URLs and decodes them for internal storage:
+
+``` ruby
+ref = Protocol::URL::Reference.parse("path%20with%20spaces?foo=bar#frag%20ment")
+ref.path      # => "path with spaces" (decoded)
+ref.fragment  # => "frag ment" (decoded)
+ref.to_s      # => "path%20with%20spaces?foo=bar#frag%20ment" (re-encoded)
+```
+
+### With new() - Expects Unencoded Input
+
+`new()` expects raw, unencoded values and encodes them during output:
+
+``` ruby
+ref = Protocol::URL::Reference.new("path with spaces", "foo=bar", "frag ment")
+ref.path      # => "path with spaces"
+ref.fragment  # => "frag ment"
+ref.to_s      # => "path%20with%20spaces?foo=bar#frag%20ment"
+```
+
+**Warning**: Passing encoded values to `new()` causes double-encoding:
+
+``` ruby
+# Wrong - will double-encode:
+ref = Protocol::URL::Reference.new("path%20with%20spaces")
+ref.to_s  # => "path%2520with%2520spaces" (double-encoded!)
+
+# Correct - use parse() for encoded input:
+ref = Protocol::URL::Reference.parse("path%20with%20spaces")
+ref.to_s  # => "path%20with%20spaces"
+```
+
+Unicode and special characters are handled automatically:
+
+``` ruby
+ref = Protocol::URL::Reference.new("I/❤️/UNICODE")
+ref.to_s  # => "I/%E2%9D%A4%EF%B8%8F/UNICODE"
+```
 
 ## Accessing Components
 
 References provide accessors for all URL components:
 
-~~~ ruby
+``` ruby
 reference = Protocol::URL["/api/v1/users?page=2&limit=50#results"]
 
 # Path component:
@@ -59,7 +106,7 @@ reference.query     # => "page=2&limit=50"
 
 # Fragment (decoded):
 reference.fragment  # => "results"
-~~~
+```
 
 ## Updating References
 
@@ -67,7 +114,7 @@ The {ruby Protocol::URL::Reference#with} method creates a new reference with mod
 
 ### Modifying the Path
 
-~~~ ruby
+``` ruby
 base = Protocol::URL::Reference.new("/api/v1/users")
 
 # Append to path with relative reference:
@@ -81,13 +128,13 @@ sibling.to_s  # => "/api/v1/groups"
 # Replace with absolute path:
 root = base.with(path: "/status")
 root.to_s  # => "/status"
-~~~
+```
 
 The path resolution follows RFC 3986 rules, using {ruby Protocol::URL::Path.expand} internally.
 
 ### Updating Query Parameters
 
-~~~ ruby
+``` ruby
 base = Protocol::URL::Reference.new("/search", "q=ruby")
 
 # Replace query string:
@@ -97,11 +144,11 @@ filtered.to_s  # => "/search?q=ruby&lang=en"
 # Remove query string:
 no_query = base.with(query: nil)
 no_query.to_s  # => "/search"
-~~~
+```
 
 ### Updating Fragments
 
-~~~ ruby
+``` ruby
 doc = Protocol::URL::Reference.new("/docs/guide")
 
 # Add fragment:
@@ -115,28 +162,28 @@ different.to_s  # => "/docs/guide#usage"
 # Remove fragment:
 no_fragment = section.with(fragment: nil)
 no_fragment.to_s  # => "/docs/guide"
-~~~
+```
 
 ### Updating Multiple Components
 
 You can update multiple components at once:
 
-~~~ ruby
+``` ruby
 base = Protocol::URL::Reference.new("/api/users")
 
 modified = base.with(
-  path: "posts",
-  query: "author=john&status=published",
-  fragment: "top"
+		path: "posts",
+		query: "author=john&status=published",
+		fragment: "top"
 )
 modified.to_s  # => "/api/posts?author=john&status=published#top"
-~~~
+```
 
 ## Combining with Absolute URLs
 
 References can be combined with absolute URLs to create complete URLs:
 
-~~~ ruby
+``` ruby
 # Base absolute URL:
 base = Protocol::URL["https://api.example.com/v1"]
 
@@ -146,13 +193,13 @@ reference = Protocol::URL::Reference.new("users", "active=true", "list")
 # Combine them:
 result = base + reference
 result.to_s  # => "https://api.example.com/v1/users?active=true#list"
-~~~
+```
 
 ## Fragment Encoding
 
 Fragments are automatically decoded when parsing and encoded when converting to strings:
 
-~~~ ruby
+``` ruby
 # Parsing decodes percent-encoded fragments:
 reference = Protocol::URL["/docs#hello%20world"]
 reference.fragment  # => "hello world" (decoded)
@@ -162,13 +209,13 @@ reference.to_s      # => "/docs#hello%20world" (re-encoded)
 reference = Protocol::URL["/page#section/1.2?note"]
 reference.fragment  # => "section/1.2?note"
 # Characters like / and ? are allowed in fragments per RFC 3986
-~~~
+```
 
 ## Practical Examples
 
 ### Building Paginated API Requests
 
-~~~ ruby
+``` ruby
 # Start with base endpoint:
 endpoint = Protocol::URL::Reference.new("/api/users", "page=1&limit=20")
 
@@ -183,11 +230,11 @@ next_page.to_s  # => "/api/users?page=2&limit=20"
 # Add filtering (merge with existing parameters):
 filtered = endpoint.with(parameters: {"status" => "active"})
 filtered.to_s  # => "/api/users?page=1&limit=20&status=active"
-~~~
+```
 
 ### Documentation Links with Anchors
 
-~~~ ruby
+``` ruby
 # Base documentation path:
 doc = Protocol::URL::Reference.new("/docs/api")
 
@@ -202,11 +249,11 @@ methods.to_s  # => "/docs/api#methods"
 # Navigate to related document:
 tutorial = doc.with(path: "/docs/tutorial", fragment: "step-1")
 tutorial.to_s  # => "/docs/tutorial#step-1"
-~~~
+```
 
 ### Search Results with Filters
 
-~~~ ruby
+``` ruby
 # Initial search:
 search = Protocol::URL::Reference.new("/search", "q=ruby")
 
@@ -217,7 +264,7 @@ filtered.to_s  # => "/search?q=ruby&lang=en"
 # Jump to specific result:
 result = filtered.with(fragment: "result-5")
 result.to_s  # => "/search?q=ruby&lang=en#result-5"
-~~~
+```
 
 ## Best Practices
 
@@ -227,11 +274,27 @@ result.to_s  # => "/search?q=ruby&lang=en#result-5"
 - Use {ruby Protocol::URL::Relative} for simple path-only URLs
 - Use {ruby Protocol::URL::Absolute} for complete URLs with scheme and host
 
+### parse() vs new()
+
+Choose the right method based on your data source:
+
+- **Use `parse()` or `[]`** for external/untrusted data (user input, URLs from web pages, API responses). These methods validate and decode the URL.
+- **Use `new()`** for known good values from your code. This is more efficient since it skips validation and expects unencoded values.
+
+``` ruby
+# External data - use parse():
+user_input = "/search?q=ruby%20gems"
+reference = Protocol::URL[user_input]  # Validates and decodes
+
+# Internal data - use new():
+reference = Protocol::URL::Reference.new("/api/users", "status=active")  # Direct construction
+```
+
 ### Query String Management
 
 The library provides built-in parameter handling through the `parameters` attribute:
 
-~~~ ruby
+``` ruby
 # Create reference with query string:
 reference = Protocol::URL::Reference.new("/search", "q=ruby&page=2")
 
@@ -247,53 +310,24 @@ updated.to_s  # => "/search?q=ruby&page=2&lang=en"
 # Replace parameters completely (merge: false):
 replaced = reference.with(parameters: {"q" => "python"}, merge: false)
 replaced.to_s  # => "/search?q=python"
-~~~
+```
 
 Alternatively, you can provide parameters directly when creating a reference:
 
-~~~ ruby
+``` ruby
 # Create with parameters directly:
 reference = Protocol::URL::Reference.new("/search", nil, nil, {"q" => "ruby", "page" => "2"})
 reference.to_s  # => "/search?q=ruby&page=2"
-~~~
+```
 
 ### Immutability
 
 References are immutable - `with` always returns a new instance:
 
-~~~ ruby
+``` ruby
 original = Protocol::URL::Reference.new("/api/users")
 modified = original.with(query: "active=true")
 
 original.to_s  # => "/api/users" (unchanged)
 modified.to_s  # => "/api/users?active=true" (new instance)
-~~~
-
-## Common Pitfalls
-
-### Empty Path Updates
-
-Empty paths are treated as "no change" in `with`:
-
-~~~ ruby
-base = Protocol::URL::Reference.new("/api/users")
-same = base.with(path: "")
-same.to_s  # => "/api/users" (unchanged)
-~~~
-
-To clear the path completely, use an absolute empty path:
-
-~~~ ruby
-root = base.with(path: "/")
-root.to_s  # => "/"
-~~~
-
-### Fragment vs Query Order
-
-Fragments always come after query strings in URLs:
-
-~~~ ruby
-# Correct order: path?query#fragment
-reference = Protocol::URL::Reference.new("/page", "q=test", "section")
-reference.to_s  # => "/page?q=test#section"
-~~~
+```

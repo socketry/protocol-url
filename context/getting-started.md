@@ -6,9 +6,9 @@ This guide explains how to get started with `protocol-url` for parsing, manipula
 
 Add the gem to your project:
 
-~~~ bash
+``` shell
 $ bundle add protocol-url
-~~~
+```
 
 ## Core Concepts
 
@@ -20,14 +20,12 @@ $ bundle add protocol-url
 
 Additionally, the {ruby Protocol::URL::Path} module provides low-level utilities for path manipulation including splitting, joining, simplifying, and expanding paths according to RFC 3986 rules.
 
-## Basic Usage
-
-### Parsing URLs
+## Usage
 
 Parse complete URLs with scheme and authority:
 
-~~~ ruby
-require 'protocol/url'
+``` ruby
+require "protocol/url"
 
 # Parse an absolute URL:
 url = Protocol::URL["https://api.example.com:8080/v1/users?page=2#results"]
@@ -36,11 +34,11 @@ url.authority   # => "api.example.com:8080"
 url.path        # => "/v1/users"
 url.query       # => "page=2"
 url.fragment    # => "results"
-~~~
+```
 
 Parse relative URLs and references:
 
-~~~ ruby
+``` ruby
 # Parse a relative URL:
 relative = Protocol::URL["/api/v1/users"]
 relative.path   # => "/api/v1/users"
@@ -50,13 +48,13 @@ reference = Protocol::URL["/search?q=ruby#top"]
 reference.path      # => "/search"
 reference.query     # => "q=ruby"
 reference.fragment  # => "top"
-~~~
+```
 
 ### Constructing URLs
 
 Build URLs programmatically:
 
-~~~ ruby
+``` ruby
 # Create an absolute URL:
 url = Protocol::URL::Absolute.new("https", "example.com", "/api/users")
 url.to_s  # => "https://example.com/api/users"
@@ -68,13 +66,13 @@ url.to_s  # => "https://user:pass@api.example.com:8080/v1"
 # Create a reference with components:
 reference = Protocol::URL::Reference.new("/api/search", "q=ruby&limit=10", "results")
 reference.to_s  # => "/api/search?q=ruby&limit=10#results"
-~~~
+```
 
 ### Combining URLs
 
 URLs can be combined following RFC 3986 resolution rules:
 
-~~~ ruby
+``` ruby
 # Combine absolute URL with relative path:
 base = Protocol::URL["https://example.com/docs/guide/"]
 relative = Protocol::URL::Relative.new("../api/reference.html")
@@ -86,7 +84,7 @@ result.to_s  # => "https://example.com/docs/api/reference.html"
 absolute_path = Protocol::URL::Relative.new("/completely/different/path")
 result = base + absolute_path
 result.to_s  # => "https://example.com/completely/different/path"
-~~~
+```
 
 ## Path Manipulation
 
@@ -94,7 +92,7 @@ The {ruby Protocol::URL::Path} module provides powerful utilities for working wi
 
 ### Splitting and Joining Paths
 
-~~~ ruby
+``` ruby
 # Split paths into components:
 Protocol::URL::Path.split("/a/b/c")     # => ["", "a", "b", "c"]
 Protocol::URL::Path.split("a/b/c")      # => ["a", "b", "c"]
@@ -103,13 +101,13 @@ Protocol::URL::Path.split("a/b/c/")     # => ["a", "b", "c", ""]
 # Join components back into paths:
 Protocol::URL::Path.join(["", "a", "b", "c"])  # => "/a/b/c"
 Protocol::URL::Path.join(["a", "b", "c"])      # => "a/b/c"
-~~~
+```
 
 ### Simplifying Paths
 
 Remove dot segments (`.` and `..`) from paths:
 
-~~~ ruby
+``` ruby
 # Simplify a path:
 components = ["a", "b", "..", "c", ".", "d"]
 simplified = Protocol::URL::Path.simplify(components)
@@ -119,13 +117,13 @@ simplified = Protocol::URL::Path.simplify(components)
 components = ["", "a", "b", "..", "..", "c"]
 simplified = Protocol::URL::Path.simplify(components)
 # => ["", "c"]
-~~~
+```
 
 ### Expanding Paths
 
 Merge two paths according to RFC 3986 rules:
 
-~~~ ruby
+``` ruby
 # Expand a relative path against a base:
 result = Protocol::URL::Path.expand("/a/b/c", "../d")
 # => "/a/b/d"
@@ -137,11 +135,11 @@ result = Protocol::URL::Path.expand("/a/b/c/d", "../../e/f")
 # Absolute relative paths replace the base:
 result = Protocol::URL::Path.expand("/a/b/c", "/x/y/z")
 # => "/x/y/z"
-~~~
+```
 
 The `expand` method has an optional `pop` parameter (default: `true`) that controls whether the last component of the base path is removed before merging:
 
-~~~ ruby
+``` ruby
 # With pop=true (default), behaves like URI resolution:
 Protocol::URL::Path.expand("/a/b/file.html", "other.html")
 # => "/a/b/other.html"
@@ -149,15 +147,36 @@ Protocol::URL::Path.expand("/a/b/file.html", "other.html")
 # With pop=false, treats base as a directory:
 Protocol::URL::Path.expand("/a/b/file.html", "other.html", false)
 # => "/a/b/file.html/other.html"
-~~~
+```
+
+### Converting to Local File System Paths
+
+Convert URL paths to local file system paths safely:
+
+``` ruby
+# Convert URL path to local file system path:
+Protocol::URL::Path.to_local_path("/documents/report.pdf")
+# => "/documents/report.pdf"
+
+# Handles percent-encoded characters:
+Protocol::URL::Path.to_local_path("/files/My%20Document.txt")
+# => "/files/My Document.txt"
+
+# Security: Preserves percent-encoded path separators
+# This prevents directory traversal attacks:
+Protocol::URL::Path.to_local_path("/folder/safe%2Fname/file.txt")
+# => "/folder/safe%2Fname/file.txt"
+# %2F (/) and %5C (\) are NOT decoded, preventing them from creating
+# additional path components in the file system
+```
 
 ## Working with References
 
-{ruby Protocol::URL::Reference} extends relative URLs with query parameters and fragments. For detailed information on working with references, see the [Working with References](working-with-references.md) guide.
+{ruby Protocol::URL::Reference} extends relative URLs with query parameters and fragments. For detailed information on working with references, see the [Working with References](../working-with-references/) guide.
 
 Quick example:
 
-~~~ ruby
+``` ruby
 # Create a reference with query and fragment:
 reference = Protocol::URL::Reference.new("/api/users", "status=active", "results")
 reference.to_s  # => "/api/users?status=active#results"
@@ -165,14 +184,14 @@ reference.to_s  # => "/api/users?status=active#results"
 # Update components immutably:
 updated = reference.with(query: "status=inactive")
 updated.to_s  # => "/api/users?status=inactive#results"
-~~~
+```
 
 ## URL Encoding
 
 The library handles URL encoding automatically for path components:
 
-~~~ ruby
-require 'protocol/url/encoding'
+``` ruby
+require "protocol/url/encoding"
 
 # Escape path components (preserves slashes):
 escaped = Protocol::URL::Encoding.escape_path("/path/with spaces/file.html")
@@ -185,13 +204,13 @@ escaped = Protocol::URL::Encoding.escape("hello world!")
 # Unescape percent-encoded strings:
 unescaped = Protocol::URL::Encoding.unescape("hello%20world%21")
 # => "hello world!"
-~~~
+```
 
 ## Practical Examples
 
 ### Building API URLs
 
-~~~ ruby
+``` ruby
 # Build a base API URL:
 base = Protocol::URL::Absolute.new("https", "api.example.com", "/v2")
 
@@ -202,13 +221,13 @@ users_endpoint.to_s  # => "https://api.example.com/v2/users"
 # Add specific resource ID:
 user_detail = users_endpoint + Protocol::URL::Relative.new("123")
 user_detail.to_s  # => "https://api.example.com/v2/users/123"
-~~~
+```
 
 ### Resolving Relative Links
 
 When parsing HTML or processing links, you often need to resolve relative URLs:
 
-~~~ ruby
+``` ruby
 # Page URL:
 page = Protocol::URL["https://example.com/docs/guide/intro.html"]
 
@@ -221,20 +240,20 @@ resolved.to_s  # => "https://example.com/docs/api/reference.html"
 link = Protocol::URL::Relative.new("getting-started.html")
 resolved = page + link
 resolved.to_s  # => "https://example.com/docs/guide/getting-started.html"
-~~~
+```
 
 ### URL Normalization
 
 Clean up URLs by simplifying paths:
 
-~~~ ruby
+``` ruby
 # URL with redundant path segments:
 messy = Protocol::URL["https://example.com/a/b/../c/./d"]
 
 # The path is automatically simplified:
 messy.path  # => "/a/c/d"
 messy.to_s  # => "https://example.com/a/c/d"
-~~~
+```
 
 ## Best Practices
 
@@ -263,7 +282,7 @@ When manipulating paths:
 
 The `expand` method pops the last path component by default to match RFC 3986 URI resolution:
 
-~~~ ruby
+``` ruby
 # This might be surprising:
 Protocol::URL::Path.expand("/api/users", "groups")
 # => "/api/groups" (not "/api/users/groups")
@@ -271,23 +290,23 @@ Protocol::URL::Path.expand("/api/users", "groups")
 # To prevent popping, use pop=false:
 Protocol::URL::Path.expand("/api/users", "groups", false)
 # => "/api/users/groups"
-~~~
+```
 
 ### Empty Paths
 
 Empty relative paths return the base unchanged:
 
-~~~ ruby
+``` ruby
 base = Protocol::URL::Reference.new("/api/users")
 same = base.with(path: "")
 same.to_s  # => "/api/users" (unchanged)
-~~~
+```
 
 ### Trailing Slashes
 
 Trailing slashes are preserved and have semantic meaning:
 
-~~~ ruby
+``` ruby
 # Directory (trailing slash):
 Protocol::URL::Path.expand("/docs/", "page.html")
 # => "/docs/page.html"
@@ -295,4 +314,4 @@ Protocol::URL::Path.expand("/docs/", "page.html")
 # File (no trailing slash):
 Protocol::URL::Path.expand("/docs", "page.html") 
 # => "/page.html" (pops "docs")
-~~~
+```

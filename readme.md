@@ -6,9 +6,11 @@ Provides abstractions for working with URLs.
 
 ## Usage
 
-Please see the [project documentation](https://socketry.github.io/protocol-url/) for more details.
+Please see the [project documentation](https://github.com/socketry/protocol-url) for more details.
 
-  - [Getting Started](https://socketry.github.io/protocol-url/guides/getting-started/index) - This guide explains how to use `protocol-url` for working with URLs.
+  - [Getting Started](https://github.com/socketry/protocol-urlguides/getting-started/index) - This guide explains how to get started with `protocol-url` for parsing, manipulating, and constructing URLs in Ruby.
+
+  - [Working with References](https://github.com/socketry/protocol-urlguides/working-with-references/index) - This guide explains how to use <code class="language-ruby">Protocol::URL::Reference</code> for managing URLs with query parameters and fragments.
 
 ## Contributing
 
@@ -30,7 +32,11 @@ This project is best served by a collaborative and respectful environment. Treat
 
 ## Releases
 
-There are no documented releases.
+Please see the [project releases](https://github.com/socketry/protocol-urlreleases/index) for all releases.
+
+### v0.1.0
+
+  - Initial implementation.
 
 ## See Also
 
