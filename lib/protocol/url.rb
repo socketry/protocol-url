@@ -4,6 +4,7 @@
 # Copyright, 2025, by Samuel Williams.
 
 require_relative "url/version"
+require_relative "url/pattern"
 require_relative "url/encoding"
 require_relative "url/reference"
 require_relative "url/relative"
@@ -11,20 +12,6 @@ require_relative "url/absolute"
 
 module Protocol
 	module URL
-		# RFC 3986 URI pattern with named capture groups.
-		# Matches: [scheme:][//authority][path][?query][#fragment]
-		# Rejects strings containing whitespace or control characters (matching standard URI behavior).
-		PATTERN = %r{
-			\A
-			(?:(?<scheme>[a-z][a-z0-9+.-]*):)?      # scheme (optional)
-			(?://(?<authority>[^/?#\s]*))?          # authority (optional, without //, no whitespace)
-			(?<path>[^?#\s]*)                       # path (no whitespace)
-			(?:\?(?<query>[^#\s]*))?                # query (optional, no whitespace)
-			(?:\#(?<fragment>[^\s]*))?              # fragment (optional, no whitespace)
-			\z
-		}ix
-		private_constant :PATTERN
-		
 		# Coerce a value into an appropriate URL type (Absolute or Relative).
 		#
 		# @parameter value [String, Absolute, Relative, nil] The value to coerce.

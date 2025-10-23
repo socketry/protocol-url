@@ -3,6 +3,7 @@
 # Released under the MIT License.
 # Copyright, 2025, by Samuel Williams.
 
+require_relative "pattern"
 require_relative "encoding"
 require_relative "relative"
 
