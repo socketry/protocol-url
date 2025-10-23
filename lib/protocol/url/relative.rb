@@ -12,16 +12,29 @@ module Protocol
 		class Relative
 			include Comparable
 			
+			# Initialize a new relative URL.
+			#
+			# @parameter path [String] The path component.
+			# @parameter query [String, nil] The query string.
+			# @parameter fragment [String, nil] The fragment identifier.
 			def initialize(path, query = nil, fragment = nil)
 				@path = path.to_s
 				@query = query
 				@fragment = fragment
 			end
 			
+			# @attribute [String] The path component of the URL.
 			attr :path
+			
+			# @attribute [String, nil] The query string component.
 			attr :query
+			
+			# @attribute [String, nil] The fragment identifier.
 			attr :fragment
 			
+			# Convert the URL path to a local filesystem path.
+			#
+			# @returns [String] The local filesystem path.
 			def to_local_path
 				Path.to_local_path(@path)
 			end
@@ -131,42 +144,76 @@ module Protocol
 				return buffer
 			end
 			
+			# Convert the URL to an array representation.
+			#
+			# @returns [Array] An array of `[path, query, fragment]`.
 			def to_ary
 				[@path, @query, @fragment]
 			end
 			
+			# Compute a hash value for the URL based on its components.
+			#
+			# @returns [Integer] The hash value.
 			def hash
 				to_ary.hash
 			end
 			
+			# Check if this URL is equal to another URL by comparing components.
+			#
+			# @parameter other [Relative] The URL to compare with.
+			# @returns [Boolean] True if the URLs have identical components.
 			def equal?(other)
 				to_ary == other.to_ary
 			end
 			
+			# Compare this URL with another for sorting purposes.
+			#
+			# @parameter other [Relative] The URL to compare with.
+			# @returns [Integer] -1, 0, or 1 based on component-wise comparison.
 			def <=>(other)
 				to_ary <=> other.to_ary
 			end
 			
+			# Check structural equality by comparing components.
+			#
+			# @parameter other [Relative] The URL to compare with.
+			# @returns [Boolean] True if the URLs have identical components.
 			def ==(other)
 				to_ary == other.to_ary
 			end
 			
+			# Check string equality, useful for case statements.
+			#
+			# @parameter other [String, Relative] The value to compare with.
+			# @returns [Boolean] True if the string representations match.
 			def ===(other)
 				to_s === other
 			end
 			
+			# Convert the URL to its string representation.
+			#
+			# @returns [String] The formatted URL string.
 			def to_s
 				append
 			end
 			
+			# Convert the URL to a JSON-compatible representation.
+			#
+			# @returns [String] The URL as a string.
 			def as_json(...)
 				to_s
 			end
 			
+			# Convert the URL to JSON.
+			#
+			# @returns [String] The JSON-encoded URL.
 			def to_json(...)
 				as_json.to_json(...)
 			end
 			
+			# Generate a human-readable representation for debugging.
+			#
+			# @returns [String] A string like `#<Protocol::URL::Relative /path?query#fragment>`.
 			def inspect
 				"#<#{self.class} #{to_s}>"
 			end

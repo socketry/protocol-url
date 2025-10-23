@@ -17,6 +17,35 @@ module Protocol
 		class Reference < Relative
 			include Comparable
 			
+			# Coerce a value into a {Reference} instance.
+			#
+			# This method provides flexible conversion from various types into a {Reference}.
+			# When given a {String}, it parses the URL-encoded path, query, and fragment components
+			# and unescapes them for internal storage. When given a {Relative}, it converts the
+			# encoded values to unescaped form suitable for {Reference} instances.
+			#
+			# @parameter value [String | Relative | Nil] The value to coerce.
+			# @parameter parameters [Hash | Nil] Optional user-supplied parameters to append to the query string.
+			#
+			# @returns [Reference | Nil] A new reference instance, or `nil` if the input is `nil`.
+			#
+			# @raises [ArgumentError] If the string contains whitespace or control characters.
+			# @raises [ArgumentError] If the value cannot be coerced to a {Reference}.
+			#
+			# @example Coerce a string with path, query, and fragment.
+			# 	reference = Reference["/search?q=ruby#results"]
+			# 	reference.path      # => "/search"
+			# 	reference.query     # => "q=ruby"
+			# 	reference.fragment  # => "results"
+			#
+			# @example Coerce with additional parameters.
+			# 	reference = Reference["/search", {"limit" => "10"}]
+			# 	reference.to_s  # => "/search?limit=10"
+			#
+			# @example Coerce a Relative instance.
+			# 	relative = Relative.new("/path%20with%20spaces", nil, "top")
+			# 	reference = Reference[relative]
+			# 	reference.path  # => "/path with spaces"
 			def self.[](value, parameters = nil)
 				case value
 				when String
@@ -25,7 +54,7 @@ module Protocol
 						query = match[:query]
 						fragment = match[:fragment]
 						
-						# Unescape path and fragment for user-friendly internal storage
+						# Unescape path and fragment for user-friendly internal storage:
 						# Query strings are kept as-is since they contain = and & syntax
 						path = Encoding.unescape(path) if path && !path.empty?
 						fragment = Encoding.unescape(fragment) if fragment
@@ -35,7 +64,7 @@ module Protocol
 						raise ArgumentError, "Invalid URL (contains whitespace or control characters): #{value.inspect}"
 					end
 				when Relative
-					# Relative stores encoded values, so we need to unescape them for Reference
+					# Relative stores encoded values, so we need to unescape them for Reference:
 					path = value.path
 					fragment = value.fragment
 					

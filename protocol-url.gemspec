@@ -17,6 +17,7 @@ Gem::Specification.new do |spec|
 	
 	spec.metadata = {
 		"source_code_uri" => "https://github.com/socketry/protocol-url.git",
+		"documentation_uri" => "https://socketry.github.io/protocol-url/",
 	}
 	
 	spec.files = Dir.glob(["{lib}/**/*", "*.md"], File::FNM_DOTMATCH, base: __dir__)

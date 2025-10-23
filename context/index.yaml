@@ -4,6 +4,7 @@
 description: Provides abstractions for working with URLs.
 metadata:
   source_code_uri: https://github.com/socketry/protocol-url.git
+  documentation_uri: https://socketry.github.io/protocol-url/
 files:
 - path: getting-started.md
   title: Getting Started

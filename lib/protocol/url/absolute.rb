@@ -10,6 +10,13 @@ module Protocol
 		# Represents an absolute URL with scheme and/or authority.
 		# Examples: "https://example.com/path", "//cdn.example.com/lib.js", "http://localhost/"
 		class Absolute < Relative
+			# Initialize a new absolute URL.
+			#
+			# @parameter scheme [String] The URL scheme (e.g., "https", "http").
+			# @parameter authority [String] The authority component (e.g., "example.com", "user@host:port").
+			# @parameter path [String] The path component (defaults to "/").
+			# @parameter query [String, nil] The query string.
+			# @parameter fragment [String, nil] The fragment identifier.
 			def initialize(scheme, authority, path = "/", query = nil, fragment = nil)
 				@scheme = scheme
 				@authority = authority
@@ -18,13 +25,22 @@ module Protocol
 				super(path, query, fragment)
 			end
 			
+			# @attribute [String] The URL scheme.
 			attr :scheme
+			
+			# @attribute [String] The authority component.
 			attr :authority
 			
+			# Check if the URL has a non-empty scheme.
+			#
+			# @returns [Boolean] True if a scheme is present and non-empty.
 			def scheme?
 				@scheme and !@scheme.empty?
 			end
 			
+			# Check if the URL has a non-empty authority.
+			#
+			# @returns [Boolean] True if an authority is present and non-empty.
 			def authority?
 				@authority and !@authority.empty?
 			end
@@ -93,8 +109,6 @@ module Protocol
 				super(buffer)
 			end
 			
-			UNSPECIFIED = Object.new
-			
 			# Create a new Absolute URL with modified components.
 			#
 			# @parameter scheme [String, nil] The scheme to use (nil to remove scheme).
@@ -118,14 +132,24 @@ module Protocol
 				self.class.new(scheme, authority, Path.expand(@path, path, pop), query, fragment)
 			end
 			
+			# Convert the URL to an array representation.
+			#
+			# @returns [Array] An array of `[scheme, authority, path, query, fragment]`.
 			def to_ary
 				[@scheme, @authority, @path, @query, @fragment]
 			end
 			
+			# Compare this URL with another for sorting purposes.
+			#
+			# @parameter other [Absolute] The URL to compare with.
+			# @returns [Integer] -1, 0, or 1 based on component-wise comparison.
 			def <=>(other)
 				to_ary <=> other.to_ary
 			end
 			
+			# Convert the URL to its string representation.
+			#
+			# @returns [String] The formatted absolute URL string.
 			def to_s
 				append
 			end
