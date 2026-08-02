@@ -233,6 +233,17 @@ module Protocol
 				
 				return parameters
 			end
+			
+			# Decode an `application/x-www-form-urlencoded` string into a hash.
+			# In addition to percent encoding, this format represents spaces using `+`.
+			#
+			# @parameter string [String] The form-encoded string to decode.
+			# @parameter maximum [Integer] The maximum number of keys in a path.
+			# @parameter symbolize_keys [Boolean] Whether to symbolize keys.
+			# @returns [Hash] The decoded form values.
+			def self.decode_www_form(string, maximum = 8, symbolize_keys: false)
+				return self.decode(string.gsub("+", "%20"), maximum, symbolize_keys: symbolize_keys)
+			end
 		end
 	end
 end

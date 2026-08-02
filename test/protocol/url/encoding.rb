@@ -160,6 +160,26 @@ describe Protocol::URL::Encoding do
 		end
 	end
 	
+	describe ".decode_www_form" do
+		it "decodes spaces represented by plus signs" do
+			expect(Protocol::URL::Encoding.decode_www_form("query=hello+world")).to be == {"query" => "hello world"}
+		end
+		
+		it "preserves percent-encoded plus signs" do
+			expect(Protocol::URL::Encoding.decode_www_form("operator=%2B")).to be == {"operator" => "+"}
+		end
+		
+		it "decodes nested values" do
+			result = Protocol::URL::Encoding.decode_www_form("user[name]=Samuel+Williams")
+			expect(result).to be == {"user" => {"name" => "Samuel Williams"}}
+		end
+		
+		it "forwards decoding options" do
+			result = Protocol::URL::Encoding.decode_www_form("user[name]=Samuel", symbolize_keys: true)
+			expect(result).to be == {user: {name: "Samuel"}}
+		end
+	end
+	
 	describe ".encode with prefix" do
 		it "returns prefix for nil value" do
 			result = Protocol::URL::Encoding.encode(nil, "prefix")
