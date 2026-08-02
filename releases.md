@@ -1,6 +1,6 @@
 # Releases
 
-## Unreleased
+## v0.5.0
 
   - Add `Protocol::URL::Encoding.decode_www_form` for decoding HTML form data where `+` represents a space.
 
