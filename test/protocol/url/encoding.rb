@@ -86,6 +86,21 @@ describe Protocol::URL::Encoding do
 		end
 	end
 	
+	describe ".encode_www_form" do
+		it "encodes spaces using plus signs" do
+			expect(Protocol::URL::Encoding.encode_www_form({"query" => "hello world"})).to be == "query=hello+world"
+		end
+		
+		it "percent encodes literal plus signs" do
+			expect(Protocol::URL::Encoding.encode_www_form({"operator" => "+"})).to be == "operator=%2B"
+		end
+		
+		it "encodes nested values" do
+			result = Protocol::URL::Encoding.encode_www_form({"user" => {"name" => "Samuel Williams"}})
+			expect(result).to be == "user[name]=Samuel+Williams"
+		end
+	end
+	
 	describe ".assign" do
 		let(:parameters) {Hash.new}
 		

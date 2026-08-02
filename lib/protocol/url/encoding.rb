@@ -134,6 +134,16 @@ module Protocol
 				end
 			end
 			
+			# Encode a hash or array as `application/x-www-form-urlencoded` data.
+			# This format represents spaces using `+`.
+			#
+			# @parameter value [Hash | Array | Nil] The value to encode.
+			# @parameter prefix [String] The prefix to use for keys.
+			# @returns [String] The encoded form data.
+			def self.encode_www_form(value, prefix = nil)
+				return self.encode(value, prefix).gsub("%20", "+")
+			end
+			
 			# Scan a string for URL-encoded key/value pairs.
 			# @yields {|key, value| ...}
 			# 	@parameter key [String] The unescaped key.
