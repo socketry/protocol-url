@@ -1,5 +1,9 @@
 # Releases
 
+## Unreleased
+
+  - Add `Protocol::URL::Encoding.decode_www_form` for decoding HTML form data where `+` represents a space.
+
 ## v0.4.0
 
   - Add comparison methods to `Protocol::URL::Relative` (and by inheritance to `Protocol::URL::Absolute`):
