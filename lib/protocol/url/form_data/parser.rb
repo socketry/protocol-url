@@ -34,17 +34,16 @@ module Protocol
 				# When a block is given, each decoded value is passed through the block before assignment. The value returned by the block is assigned to the result.
 				#
 				# @parameter body [Object] A readable body which yields chunks from `#read`.
+				# @parameter result [Object] The result to populate. It must support `#add` and `#to_h`.
 				# @yields {|name, value| ...} Each decoded form pair before assignment.
 				# @returns [Hash] The nested form data.
-				def parse(body)
-					nested = Nested.new(maximum_depth: @maximum_depth)
-					
+				def parse(body, result = make_result)
 					each(body) do |name, value|
 						value = yield(name, value) if block_given?
-						nested.add(name, value)
+						result.add(name, value)
 					end
 					
-					return nested.to_h
+					return result.to_h
 				end
 				
 				# Incrementally enumerate URL-encoded form data as ordered name/value pairs.
@@ -87,6 +86,10 @@ module Protocol
 				end
 				
 				private
+				
+				def make_result
+					return Nested.new(maximum_depth: @maximum_depth)
+				end
 				
 				def yield_pair(assignment)
 					name, value = assignment.split("=", 2)
