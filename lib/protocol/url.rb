@@ -6,6 +6,8 @@
 require_relative "url/version"
 require_relative "url/pattern"
 require_relative "url/encoding"
+require_relative "url/form_data/nested"
+require_relative "url/form_data/parser"
 require_relative "url/reference"
 require_relative "url/relative"
 require_relative "url/absolute"
