@@ -34,6 +34,10 @@ This project is best served by a collaborative and respectful environment. Treat
 
 Please see the [project releases](https://socketry.github.io/protocol-url/releases/index) for all releases.
 
+### v0.7.0
+
+  - Allow `Protocol::URL::FormData::Parser#parse` to populate a supplied result object.
+
 ### v0.6.0
 
   - Add `Protocol::URL::FormData::Parser` for incremental, limited parsing of `application/x-www-form-urlencoded` form data.

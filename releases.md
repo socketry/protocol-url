@@ -1,6 +1,6 @@
 # Releases
 
-## Unreleased
+## v0.7.0
 
   - Allow `Protocol::URL::FormData::Parser#parse` to populate a supplied result object.
 
