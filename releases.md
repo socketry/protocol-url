@@ -1,5 +1,9 @@
 # Releases
 
+## Unreleased
+
+  - Allow `Protocol::URL::FormData::Parser#parse` to populate a supplied result object.
+
 ## v0.6.0
 
   - Add `Protocol::URL::FormData::Parser` for incremental, limited parsing of `application/x-www-form-urlencoded` form data.

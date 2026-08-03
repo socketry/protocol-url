@@ -43,6 +43,22 @@ describe Protocol::URL::FormData::Parser do
 		}
 	end
 	
+	it "parses form data into a supplied result" do
+		result = Struct.new(:pairs) do
+			def add(name, value)
+				pairs << [name, value]
+			end
+			
+			def to_h
+				return pairs.to_h
+			end
+		end.new([])
+		
+		parameters = parser.parse(StringIO.new("name=Samuel"), result)
+		
+		expect(parameters).to be == {"name" => "Samuel"}
+	end
+	
 	it "distinguishes absent and empty values" do
 		parameters = parser.parse(StringIO.new("absent&empty="))
 		
