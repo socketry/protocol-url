@@ -1,5 +1,10 @@
 # Releases
 
+## Unreleased
+
+  - Add `Protocol::URL::FormData::Parser` for incremental, limited parsing of `application/x-www-form-urlencoded` form data.
+  - Add `Protocol::URL::FormData::Nested` for consistently building nested form data while preserving absent and empty values.
+
 ## v0.5.0
 
   - Add `Protocol::URL::Encoding.decode_www_form` for decoding HTML form data where `+` represents a space.

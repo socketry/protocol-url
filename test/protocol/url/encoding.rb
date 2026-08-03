@@ -178,6 +178,13 @@ describe Protocol::URL::Encoding do
 			result = Protocol::URL::Encoding.decode_www_form("user[name]=Samuel", symbolize_keys: true)
 			expect(result).to be == {user: {name: "Samuel"}}
 		end
+		
+		it "round trips absent and empty values" do
+			encoded = Protocol::URL::Encoding.encode({"absent" => nil, "empty" => ""})
+			
+			expect(encoded).to be == "absent&empty="
+			expect(Protocol::URL::Encoding.decode_www_form(encoded)).to be == {"absent" => nil, "empty" => ""}
+		end
 	end
 	
 	describe ".encode with prefix" do
