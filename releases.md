@@ -1,6 +1,6 @@
 # Releases
 
-## Unreleased
+## v0.6.0
 
   - Add `Protocol::URL::FormData::Parser` for incremental, limited parsing of `application/x-www-form-urlencoded` form data.
   - Add `Protocol::URL::FormData::Nested` for consistently building nested form data while preserving absent and empty values.
