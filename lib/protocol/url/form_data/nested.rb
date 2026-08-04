@@ -10,13 +10,13 @@ module Protocol
 		module FormData
 			# Builds nested form data from names and values.
 			class Nested
-				# The default maximum depth of a bracketed form name.
-				MAXIMUM_DEPTH = 8
+				# The bracketed form name depth limit.
+				DEPTH_LIMIT = 8
 				
 				# Initialize the nested form data.
-				# @parameter maximum_depth [Integer | Nil] The maximum depth of a bracketed form name.
-				def initialize(maximum_depth: MAXIMUM_DEPTH)
-					@maximum_depth = maximum_depth
+				# @parameter depth_limit [Integer | Nil] The bracketed form name depth limit.
+				def initialize(depth_limit: DEPTH_LIMIT)
+					@depth_limit = depth_limit
 					@root = {}
 				end
 				
@@ -31,8 +31,8 @@ module Protocol
 						raise ArgumentError, "Invalid form data name: #{name.inspect}!"
 					end
 					
-					if @maximum_depth and keys.size > @maximum_depth
-						raise RangeError, "Form data depth exceeded limit of #{@maximum_depth}!"
+					if @depth_limit and keys.size > @depth_limit
+						raise RangeError, "Form data depth exceeded limit of #{@depth_limit}!"
 					end
 					
 					Encoding.assign(keys, value, @root)

@@ -13,20 +13,20 @@ module Protocol
 			class Parser
 				CONTENT_TYPE = "application/x-www-form-urlencoded"
 				
-				# The default maximum encoded body size.
-				MAXIMUM_TOTAL_SIZE = 2 * 1024 * 1024
+				# The encoded body size limit.
+				SIZE_LIMIT = 2 * 1024 * 1024
 				
-				# The default maximum number of form pairs.
-				MAXIMUM_PAIR_COUNT = 1024
+				# The form pair count limit.
+				PAIR_COUNT_LIMIT = 1024
 				
 				# Initialize the form data parser.
-				# @parameter maximum_total_size [Integer | Nil] The maximum encoded body size.
-				# @parameter maximum_pair_count [Integer | Nil] The maximum number of form pairs.
-				# @parameter maximum_depth [Integer | Nil] The maximum depth of a bracketed form name.
-				def initialize(maximum_total_size: MAXIMUM_TOTAL_SIZE, maximum_pair_count: MAXIMUM_PAIR_COUNT, maximum_depth: Nested::MAXIMUM_DEPTH)
-					@maximum_total_size = maximum_total_size
-					@maximum_pair_count = maximum_pair_count
-					@maximum_depth = maximum_depth
+				# @parameter size_limit [Integer | Nil] The encoded body size limit.
+				# @parameter pair_count_limit [Integer | Nil] The form pair count limit.
+				# @parameter depth_limit [Integer | Nil] The bracketed form name depth limit.
+				def initialize(size_limit: SIZE_LIMIT, pair_count_limit: PAIR_COUNT_LIMIT, depth_limit: Nested::DEPTH_LIMIT)
+					@size_limit = size_limit
+					@pair_count_limit = pair_count_limit
+					@depth_limit = depth_limit
 				end
 				
 				# Parse URL-encoded form data into a nested hash.
@@ -54,14 +54,14 @@ module Protocol
 					return to_enum(__method__, body) unless block_given?
 					
 					buffer = String.new.b
-					total_size = 0
+					size = 0
 					pair_count = 0
 					
 					while chunk = body.read
 						break if chunk.empty?
 						
-						total_size += chunk.bytesize
-						check_limit(:total_size, total_size, @maximum_total_size)
+						size += chunk.bytesize
+						check_limit(:size, size, @size_limit)
 						buffer << chunk
 						
 						while separator = buffer.index("&")
@@ -70,7 +70,7 @@ module Protocol
 							
 							unless assignment.empty?
 								pair_count += 1
-								check_limit(:pair_count, pair_count, @maximum_pair_count)
+								check_limit(:pair_count, pair_count, @pair_count_limit)
 								yield_pair(assignment) {|name, value| yield name, value}
 							end
 						end
@@ -78,7 +78,7 @@ module Protocol
 					
 					unless buffer.empty?
 						pair_count += 1
-						check_limit(:pair_count, pair_count, @maximum_pair_count)
+						check_limit(:pair_count, pair_count, @pair_count_limit)
 						yield_pair(buffer) {|name, value| yield name, value}
 					end
 					
@@ -88,7 +88,7 @@ module Protocol
 				private
 				
 				def make_result
-					return Nested.new(maximum_depth: @maximum_depth)
+					return Nested.new(depth_limit: @depth_limit)
 				end
 				
 				def yield_pair(assignment)
@@ -105,9 +105,9 @@ module Protocol
 					return Encoding.unescape(component.tr("+", " "))
 				end
 				
-				def check_limit(name, value, maximum)
-					if maximum and value > maximum
-						raise RangeError, "Form data #{name} exceeded limit of #{maximum}!"
+				def check_limit(name, value, limit)
+					if limit and value > limit
+						raise RangeError, "Form data #{name} exceeded limit of #{limit}!"
 					end
 				end
 			end

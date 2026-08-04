@@ -36,7 +36,7 @@ describe Protocol::URL::FormData::Nested do
 	end
 	
 	it "limits nested names" do
-		nested = subject.new(maximum_depth: 2)
+		nested = subject.new(depth_limit: 2)
 		
 		expect do
 			nested.add("a[b][c]", "value")
@@ -44,7 +44,7 @@ describe Protocol::URL::FormData::Nested do
 	end
 	
 	it "allows the nesting limit to be disabled" do
-		nested = subject.new(maximum_depth: nil)
+		nested = subject.new(depth_limit: nil)
 		nested.add("a[b][c]", "value")
 		
 		expect(nested.to_h).to be == {"a" => {"b" => {"c" => "value"}}}
