@@ -74,15 +74,15 @@ describe Protocol::URL::FormData::Parser do
 	end
 	
 	it "limits the total encoded size" do
-		parser = subject.new(maximum_total_size: 4)
+		parser = subject.new(size_limit: 4)
 		
 		expect do
 			parser.each(StringIO.new("name=Samuel")).to_a
-		end.to raise_exception(RangeError, message: be =~ /total_size exceeded/)
+		end.to raise_exception(RangeError, message: be =~ /size exceeded/)
 	end
 	
 	it "limits the number of pairs" do
-		parser = subject.new(maximum_pair_count: 1)
+		parser = subject.new(pair_count_limit: 1)
 		
 		expect do
 			parser.each(StringIO.new("a=1&b=2")).to_a
@@ -90,13 +90,13 @@ describe Protocol::URL::FormData::Parser do
 	end
 	
 	it "allows limits to be disabled" do
-		parser = subject.new(maximum_total_size: nil, maximum_pair_count: nil)
+		parser = subject.new(size_limit: nil, pair_count_limit: nil)
 		
 		expect(parser.each(StringIO.new("a=1&b=2")).to_a).to be == [["a", "1"], ["b", "2"]]
 	end
 	
 	it "limits nested form names" do
-		parser = subject.new(maximum_depth: 2)
+		parser = subject.new(depth_limit: 2)
 		
 		expect do
 			parser.parse(StringIO.new("a[b][c]=value"))
