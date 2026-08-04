@@ -1,6 +1,6 @@
 # Releases
 
-## Unreleased
+## v0.8.0
 
   - Use consistent limit naming for form data parser constraints.
 
