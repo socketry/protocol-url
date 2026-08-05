@@ -1,6 +1,6 @@
 # Releases
 
-## Unreleased
+## v0.10.0
 
   - Rename `Protocol::URL::FormData::Parser::CONTENT_TYPE` to `MEDIA_TYPE`.
 

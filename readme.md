@@ -34,6 +34,10 @@ This project is best served by a collaborative and respectful environment. Treat
 
 Please see the [project releases](https://socketry.github.io/protocol-url/releases/index) for all releases.
 
+### v0.10.0
+
+  - Rename `Protocol::URL::FormData::Parser::CONTENT_TYPE` to `MEDIA_TYPE`.
+
 ### v0.9.0
 
   - Add `Protocol::URL::LimitError` for configured processing limits.
