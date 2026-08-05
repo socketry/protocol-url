@@ -4,6 +4,7 @@
 # Copyright, 2026, by Samuel Williams.
 
 require_relative "../encoding"
+require_relative "../error"
 
 module Protocol
 	module URL
@@ -32,7 +33,7 @@ module Protocol
 					end
 					
 					if @depth_limit and keys.size > @depth_limit
-						raise RangeError, "Form data depth exceeded limit of #{@depth_limit}!"
+						raise LimitError, "Form data depth exceeded limit of #{@depth_limit}!"
 					end
 					
 					Encoding.assign(keys, value, @root)

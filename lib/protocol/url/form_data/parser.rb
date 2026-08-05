@@ -4,6 +4,7 @@
 # Copyright, 2026, by Samuel Williams.
 
 require_relative "nested"
+require_relative "../error"
 
 module Protocol
 	module URL
@@ -107,7 +108,7 @@ module Protocol
 				
 				def check_limit(name, value, limit)
 					if limit and value > limit
-						raise RangeError, "Form data #{name} exceeded limit of #{limit}!"
+						raise LimitError, "Form data #{name} exceeded limit of #{limit}!"
 					end
 				end
 			end

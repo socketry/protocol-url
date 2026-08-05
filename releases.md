@@ -1,5 +1,9 @@
 # Releases
 
+## Unreleased
+
+  - Add `Protocol::URL::LimitError` for configured processing limits.
+
 ## v0.8.0
 
   - Use consistent limit naming for form data parser constraints.
