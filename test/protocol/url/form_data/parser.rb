@@ -81,7 +81,7 @@ describe Protocol::URL::FormData::Parser do
 		
 		expect do
 			parser.parse(StringIO.new("a=123"))
-		end.to raise_exception(RangeError, message: be =~ /size exceeded limit of 4/)
+		end.to raise_exception(Protocol::URL::LimitError, message: be =~ /size exceeded limit of 4/)
 	end
 	
 	it "applies the pair count limit at its boundary" do
@@ -92,7 +92,7 @@ describe Protocol::URL::FormData::Parser do
 		
 		expect do
 			parser.parse(StringIO.new("a=1&b=2&c=3"))
-		end.to raise_exception(RangeError, message: be =~ /pair_count exceeded limit of 2/)
+		end.to raise_exception(Protocol::URL::LimitError, message: be =~ /pair_count exceeded limit of 2/)
 	end
 	
 	it "allows limits to be disabled" do
@@ -109,7 +109,7 @@ describe Protocol::URL::FormData::Parser do
 		
 		expect do
 			parser.parse(StringIO.new("a%5Bb%5D%5Bc%5D=1"))
-		end.to raise_exception(RangeError, message: be =~ /depth exceeded limit of 2/)
+		end.to raise_exception(Protocol::URL::LimitError, message: be =~ /depth exceeded limit of 2/)
 	end
 	
 	it "rejects an empty name when building nested form data" do

@@ -4,6 +4,7 @@
 # Copyright, 2025, by Samuel Williams.
 
 require_relative "url/version"
+require_relative "url/error"
 require_relative "url/pattern"
 require_relative "url/encoding"
 require_relative "url/form_data/nested"

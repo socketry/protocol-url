@@ -40,7 +40,7 @@ describe Protocol::URL::FormData::Nested do
 		
 		expect do
 			nested.add("a[b][c]", "value")
-		end.to raise_exception(RangeError, message: be =~ /depth exceeded/)
+		end.to raise_exception(Protocol::URL::LimitError, message: be =~ /depth exceeded/)
 	end
 	
 	it "allows the nesting limit to be disabled" do
