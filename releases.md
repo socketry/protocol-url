@@ -1,6 +1,6 @@
 # Releases
 
-## Unreleased
+## v0.9.0
 
   - Add `Protocol::URL::LimitError` for configured processing limits.
 

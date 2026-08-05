@@ -34,6 +34,10 @@ This project is best served by a collaborative and respectful environment. Treat
 
 Please see the [project releases](https://socketry.github.io/protocol-url/releases/index) for all releases.
 
+### v0.9.0
+
+  - Add `Protocol::URL::LimitError` for configured processing limits.
+
 ### v0.8.0
 
   - Use consistent limit naming for form data parser constraints.
