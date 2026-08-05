@@ -12,7 +12,7 @@ module Protocol
 		module FormData
 			# Incrementally parses `application/x-www-form-urlencoded` form data.
 			class Parser
-				CONTENT_TYPE = "application/x-www-form-urlencoded"
+				MEDIA_TYPE = "application/x-www-form-urlencoded"
 				
 				# The encoded body size limit.
 				SIZE_LIMIT = 2 * 1024 * 1024
