@@ -73,20 +73,26 @@ describe Protocol::URL::FormData::Parser do
 		expect(parameters).to be == {"count" => 12}
 	end
 	
-	it "limits the total encoded size" do
+	it "applies the encoded size limit at its boundary" do
 		parser = subject.new(size_limit: 4)
 		
-		expect do
-			parser.each(StringIO.new("name=Samuel")).to_a
-		end.to raise_exception(RangeError, message: be =~ /size exceeded/)
-	end
-	
-	it "limits the number of pairs" do
-		parser = subject.new(pair_count_limit: 1)
+		expect(parser.parse(StringIO.new("a=1"))).to be == {"a" => "1"}
+		expect(parser.parse(StringIO.new("a=12"))).to be == {"a" => "12"}
 		
 		expect do
-			parser.each(StringIO.new("a=1&b=2")).to_a
-		end.to raise_exception(RangeError, message: be =~ /pair_count exceeded/)
+			parser.parse(StringIO.new("a=123"))
+		end.to raise_exception(RangeError, message: be =~ /size exceeded limit of 4/)
+	end
+	
+	it "applies the pair count limit at its boundary" do
+		parser = subject.new(pair_count_limit: 2)
+		
+		expect(parser.parse(StringIO.new("a=1"))).to be == {"a" => "1"}
+		expect(parser.parse(StringIO.new("a=1&b=2"))).to be == {"a" => "1", "b" => "2"}
+		
+		expect do
+			parser.parse(StringIO.new("a=1&b=2&c=3"))
+		end.to raise_exception(RangeError, message: be =~ /pair_count exceeded limit of 2/)
 	end
 	
 	it "allows limits to be disabled" do
@@ -95,12 +101,15 @@ describe Protocol::URL::FormData::Parser do
 		expect(parser.each(StringIO.new("a=1&b=2")).to_a).to be == [["a", "1"], ["b", "2"]]
 	end
 	
-	it "limits nested form names" do
+	it "applies the nesting depth limit at its boundary" do
 		parser = subject.new(depth_limit: 2)
 		
+		expect(parser.parse(StringIO.new("a=1"))).to be == {"a" => "1"}
+		expect(parser.parse(StringIO.new("a%5Bb%5D=1"))).to be == {"a" => {"b" => "1"}}
+		
 		expect do
-			parser.parse(StringIO.new("a[b][c]=value"))
-		end.to raise_exception(RangeError, message: be =~ /depth exceeded/)
+			parser.parse(StringIO.new("a%5Bb%5D%5Bc%5D=1"))
+		end.to raise_exception(RangeError, message: be =~ /depth exceeded limit of 2/)
 	end
 	
 	it "rejects an empty name when building nested form data" do
