@@ -1,5 +1,9 @@
 # Releases
 
+## Unreleased
+
+  - Rename `Protocol::URL::FormData::Parser::CONTENT_TYPE` to `MEDIA_TYPE`.
+
 ## v0.9.0
 
   - Add `Protocol::URL::LimitError` for configured processing limits.
