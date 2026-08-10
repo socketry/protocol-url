@@ -226,8 +226,13 @@ module Protocol
 			# @parameter alternate_separator [String | Nil] The platform's alternate path separator.
 			# @returns [Boolean] Whether the component contains an encoded local path separator.
 			def self.encoded_local_separator?(component, alternate_separator = File::ALT_SEPARATOR)
-				return true if component.match?(/%2F/i)
-				return true if alternate_separator && component.match?(/%5C/i)
+				if component.match?(/%2F/i)
+					return true
+				end
+				
+				if alternate_separator && component.match?(/%5C/i)
+					return true
+				end
 				
 				return false
 			end
@@ -308,11 +313,25 @@ module Protocol
 			
 			# RFC 3986 `pchar`: unreserved / sub-delims / ":" / "@".
 			def self.path_character_byte?(byte)
-				return true if unreserved_byte?(byte)
-				return true if byte == 33 || byte == 36 || byte == 38 || byte == 39
-				return true if byte >= 40 && byte <= 43
-				return true if byte == 44 || byte == 59 || byte == 61
-				return true if byte == 58 || byte == 64
+				if unreserved_byte?(byte)
+					return true
+				end
+				
+				if byte == 33 || byte == 36 || byte == 38 || byte == 39
+					return true
+				end
+				
+				if byte >= 40 && byte <= 43
+					return true
+				end
+				
+				if byte == 44 || byte == 59 || byte == 61
+					return true
+				end
+				
+				if byte == 58 || byte == 64
+					return true
+				end
 				
 				return false
 			end
