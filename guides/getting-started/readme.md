@@ -102,6 +102,17 @@ path = Protocol::URL::Path[["", "a", "b/c"]]
 path.to_s  # => "/a/b%2Fc"
 ```
 
+### Inspecting Paths
+
+``` ruby
+path = Protocol::URL::Path["/releases/archive.tar.gz"]
+
+path.basename                    # => "archive.tar.gz"
+path.basename(extension: false)  # => "archive.tar"
+path.parent.to_s                 # => "/releases"
+path.parent(2).to_s              # => "/"
+```
+
 ### Simplifying Paths
 
 Remove dot segments (`.` and `..`) from paths:

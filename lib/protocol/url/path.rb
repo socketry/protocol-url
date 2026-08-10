@@ -18,8 +18,9 @@ module Protocol
 			# The path separator.
 			SEPARATOR = "/"
 			EMPTY_COMPONENTS = [].freeze
+			ROOT_COMPONENTS = ["", ""].freeze
 			INVALID_COMPONENT_PATTERN = /([^a-zA-Z0-9_\-\.~!$&'()*+,;=:@]+)/.freeze
-			private_constant :EMPTY_COMPONENTS, :INVALID_COMPONENT_PATTERN
+			private_constant :EMPTY_COMPONENTS, :ROOT_COMPONENTS, :INVALID_COMPONENT_PATTERN
 			
 			# Coerce an encoded string or decoded component array into a path.
 			#
@@ -62,7 +63,9 @@ module Protocol
 			def initialize(encoded, components = nil)
 				@encoded = encoded
 				
-				if encoded.nil? && components.nil?
+				if components == [""]
+					components = ROOT_COMPONENTS
+				elsif encoded.nil? && components.nil?
 					components = EMPTY_COMPONENTS
 				elsif components && !components.frozen?
 					# Only dup if we need to:
@@ -97,9 +100,18 @@ module Protocol
 			
 			# The final decoded component. A path with a trailing separator has an empty basename.
 			#
+			# @parameter extension [Boolean] Whether to include the final file extension.
 			# @returns [String | Nil] The final component, or `nil` for an empty path.
-			def basename
-				self.components.last
+			def basename(extension: true)
+				component = self.components.last
+				return component if extension || component.nil?
+				
+				if index = component.rindex(".")
+					basename = component[0...index]
+					return basename if basename.b.match?(/[^.]/n)
+				end
+				
+				return component
 			end
 			
 			# Return a path with its final component removed.
@@ -107,19 +119,25 @@ module Protocol
 			# The empty path and absolute root are their own parents. For a directory path,
 			# this removes the trailing empty component which represents its separator.
 			#
+			# @parameter level [Integer] The number of components to remove.
 			# @returns [Path] The parent path.
-			def parent
+			# @raises [ArgumentError] If `level` is not a non-negative integer.
+			def parent(level = 1)
+				unless level.is_a?(Integer) && level >= 0
+					raise ArgumentError, "Path parent level must be a non-negative integer!"
+				end
+				
 				components = self.components
-				return self if components.empty? || components == ["", ""]
+				return self if level == 0 || components.empty? || components == ROOT_COMPONENTS
 				
-				components = components.dup
-				components.pop
+				remaining = components.size - level
+				if absolute?
+					components = remaining <= 1 ? ROOT_COMPONENTS : components.first(remaining)
+				else
+					components = remaining <= 0 ? EMPTY_COMPONENTS : components.first(remaining)
+				end
 				
-				# A single leading empty component is the absolute root, whose canonical
-				# component representation includes the trailing empty component.
-				components << "" if components == [""]
-				
-				return self.class.new(nil, components.freeze)
+				return self.class.new(nil, components)
 			end
 			
 			# @returns [Array(String)] The decoded components, preserving their boundaries.

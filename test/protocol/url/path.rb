@@ -24,6 +24,14 @@ describe Protocol::URL::Path do
 			
 			expect(path.encoded).to be == "/a/b%2Fc"
 		end
+		
+		it "canonicalizes the absolute root component" do
+			path = Protocol::URL::Path[[""]]
+			
+			expect(path.components).to be == ["", ""]
+			expect(path.encoded).to be == "/"
+			expect(path).to be == Protocol::URL::Path["/"]
+		end
 	end
 	
 	with ".new" do
@@ -82,6 +90,23 @@ describe Protocol::URL::Path do
 			expect(Protocol::URL::Path["/a/b%2Fc"].basename).to be == "b/c"
 		end
 		
+		it "can omit the final extension from the basename" do
+			expect(Protocol::URL::Path["/archive.tar.gz"].basename(extension: false)).to be == "archive.tar"
+		end
+		
+		it "preserves a basename without an extension" do
+			expect(Protocol::URL::Path["/README"].basename(extension: false)).to be == "README"
+		end
+		
+		it "preserves dot files and dot segments" do
+			expect(Protocol::URL::Path["/.profile"].basename(extension: false)).to be == ".profile"
+			expect(Protocol::URL::Path["/.."].basename(extension: false)).to be == ".."
+		end
+		
+		it "can omit an extension from a dot file" do
+			expect(Protocol::URL::Path["/.profile.local"].basename(extension: false)).to be == ".profile"
+		end
+		
 		it "returns an empty basename for a directory" do
 			expect(Protocol::URL::Path["/a/b/"].basename).to be == ""
 		end
@@ -96,6 +121,32 @@ describe Protocol::URL::Path do
 		
 		it "returns a relative parent path" do
 			expect(Protocol::URL::Path["a/b"].parent).to be == Protocol::URL::Path["a"]
+		end
+		
+		it "can return a multi-level parent" do
+			expect(Protocol::URL::Path["/a/b/c"].parent(2)).to be == Protocol::URL::Path["/a"]
+			expect(Protocol::URL::Path["a/b/c"].parent(2)).to be == Protocol::URL::Path["a"]
+		end
+		
+		it "returns itself for a zero-level parent" do
+			path = Protocol::URL::Path["/a/b"]
+			
+			expect(path.parent(0)).to be_equal(path)
+		end
+		
+		it "clamps multi-level parents at the path root" do
+			expect(Protocol::URL::Path["/a/b"].parent(10)).to be == Protocol::URL::Path["/"]
+			expect(Protocol::URL::Path["a/b"].parent(10)).to be == Protocol::URL::Path[""]
+		end
+		
+		it "rejects an invalid parent level" do
+			expect do
+				Protocol::URL::Path["/a/b"].parent(-1)
+			end.to raise_exception(ArgumentError, message: be == "Path parent level must be a non-negative integer!")
+			
+			expect do
+				Protocol::URL::Path["/a/b"].parent(1.5)
+			end.to raise_exception(ArgumentError, message: be == "Path parent level must be a non-negative integer!")
 		end
 		
 		it "preserves encoded component boundaries in the parent" do
