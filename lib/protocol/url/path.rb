@@ -21,6 +21,10 @@ module Protocol
 			INVALID_COMPONENT_PATTERN = /([^a-zA-Z0-9_\-\.~!$&'()*+,;=:@]+)/.freeze
 			private_constant :EMPTY_COMPONENTS, :INVALID_COMPONENT_PATTERN
 			
+			# Coerce an encoded string or decoded component array into a path.
+			#
+			# @parameter path [String | Array(String) | Path] The value to coerce.
+			# @returns [Path] The coerced path, or the existing path unchanged.
 			def self.[](path)
 				if path.is_a?(self)
 					return path
@@ -51,10 +55,16 @@ module Protocol
 				return Path[target].relative(from).to_s
 			end
 			
+			# Initialize a path from either its encoded representation or decoded components.
+			#
+			# @parameter encoded [String | Nil] The encoded URL path.
+			# @parameter components [Array(String) | Nil] The decoded path components.
 			def initialize(encoded, components = nil)
 				@encoded = encoded
 				
-				unless components&.frozen?
+				if encoded.nil? && components.nil?
+					components = EMPTY_COMPONENTS
+				elsif components && !components.frozen?
 					# Only dup if we need to:
 					components = components.dup.freeze
 				end
@@ -62,52 +72,64 @@ module Protocol
 				@components = components
 			end
 			
+			# @returns [Boolean] Whether the path begins at the URL path root.
 			def absolute?
 				if @encoded
 					return @encoded.start_with?(SEPARATOR)
 				end
 				
-				if @components
-					return @components.first == ""
-				end
-				
-				return false
+				return @components.first == ""
 			end
 			
+			# @returns [Boolean] Whether the path is relative to another URL path.
 			def relative?
 				!absolute?
 			end
 			
+			# @returns [Boolean] Whether the path has a trailing separator.
 			def directory?
 				if @encoded
 					return @encoded.end_with?(SEPARATOR)
 				end
 				
-				if @components
-					return @components.last == ""	
-				end
-				
-				return true
+				return @components.last == ""
 			end
 			
+			# The final decoded component. A path with a trailing separator has an empty basename.
+			#
+			# @returns [String | Nil] The final component, or `nil` for an empty path.
 			def basename
 				self.components.last
 			end
 			
+			# Return a path with its final component removed.
+			#
+			# The empty path and absolute root are their own parents. For a directory path,
+			# this removes the trailing empty component which represents its separator.
+			#
+			# @returns [Path] The parent path.
 			def parent
-				components = self.components.dup
+				components = self.components
+				return self if components.empty? || components == ["", ""]
 				
+				components = components.dup
 				components.pop
+				
+				# A single leading empty component is the absolute root, whose canonical
+				# component representation includes the trailing empty component.
+				components << "" if components == [""]
 				
 				return self.class.new(nil, components.freeze)
 			end
 			
+			# @returns [Array(String)] The decoded components, preserving their boundaries.
 			def components
 				@components ||= @encoded.split(SEPARATOR, -1).map! do |component|
 					Encoding.unescape(component)
 				end.freeze
 			end
 			
+			# @returns [String] The encoded URL path.
 			def encoded
 				@encoded ||= @components.map{|component|
 					component.b.gsub(INVALID_COMPONENT_PATTERN) do |match|
@@ -116,6 +138,7 @@ module Protocol
 				}.join(SEPARATOR).freeze
 			end
 			
+			# @returns [Boolean] Whether the path contains no components.
 			def empty?
 				components.empty?
 			end
@@ -129,12 +152,15 @@ module Protocol
 				components <=> other.components
 			end
 			
+			# @parameter other [Object] The value to compare with this path.
+			# @returns [Boolean] Whether both paths have the same decoded components.
 			def ==(other)
 				other.is_a?(Path) && components == other.components
 			end
 			
 			alias eql? ==
 			
+			# @returns [Integer] A hash derived from the decoded components.
 			def hash
 				components.hash
 			end
@@ -175,6 +201,9 @@ module Protocol
 			alias to_s encoded
 			alias to_str encoded
 			
+			# Simplify this path in place by resolving dot segments and repeated separators.
+			#
+			# @returns [Path | Nil] This path when changed, otherwise `nil`.
 			def simplify!
 				simplified = simplify
 				return nil if simplified.equal?(self)
@@ -185,6 +214,12 @@ module Protocol
 				return self
 			end
 			
+			# Return a canonical path by resolving dot segments and repeated separators.
+			#
+			# Absolute paths do not retain parent components above the root. Relative paths
+			# retain leading parent components which cannot be resolved locally.
+			#
+			# @returns [Path] The simplified path, or this path if already canonical.
 			def simplify
 				components = simplify_components
 				return self unless components
@@ -192,6 +227,12 @@ module Protocol
 				return self.class.new(nil, components)
 			end
 			
+			# Resolve another path relative to this path.
+			#
+			# @parameter other [String | Array(String) | Path] The path to resolve.
+			# @parameter pop [Boolean] Whether to remove the final base component first.
+			# @parameter simplify [Boolean] Whether to simplify the resulting components.
+			# @returns [Path] The resolved path.
 			def join(other, pop: true, simplify: true)
 				other = Path[other]
 				return self if other.empty?
@@ -221,6 +262,10 @@ module Protocol
 				return Path.new(nil, components)
 			end
 			
+			# Calculate this path relative to another path.
+			#
+			# @parameter from [String | Array(String) | Path] The source path.
+			# @returns [Path] The relative path from `from` to this path.
 			def relative(from)
 				target_components = self.components
 				from_components = Path[from].components
@@ -293,11 +338,7 @@ module Protocol
 				while index <= last_index
 					component = components[index]
 					
-					if index == 0 && component == ""
-						# Preserve the absolute-path root.
-						components[offset] = component if offset < index
-						offset += 1
-					elsif component == "."
+					if component == "."
 						# A trailing dot denotes a directory.
 						if index == last_index
 							components[offset] = ""

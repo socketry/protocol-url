@@ -26,6 +26,15 @@ describe Protocol::URL::Path do
 		end
 	end
 	
+	with ".new" do
+		it "constructs an empty path without a representation" do
+			path = Protocol::URL::Path.new(nil)
+			
+			expect(path).to be(:empty?)
+			expect(path.encoded).to be == ""
+		end
+	end
+	
 	with "value semantics" do
 		it "exposes the encoded representation" do
 			path = Protocol::URL::Path[["", "a", "b/c"]]
@@ -49,22 +58,69 @@ describe Protocol::URL::Path do
 	end
 	
 	with "path properties" do
-		it "distinguishes absolute and relative paths" do
+		it "distinguishes encoded absolute and relative paths" do
 			expect(Protocol::URL::Path["/a"]).to be(:absolute?)
 			expect(Protocol::URL::Path["a"]).to be(:relative?)
 		end
 		
-		it "identifies directories and basenames" do
-			path = Protocol::URL::Path["/a/b/"]
-			
-			expect(path).to be(:directory?)
-			expect(path.basename).to be == ""
+		it "distinguishes component-backed absolute and relative paths" do
+			expect(Protocol::URL::Path[["", "a"]]).to be(:absolute?)
+			expect(Protocol::URL::Path[["a"]]).to be(:relative?)
 		end
 		
-		it "returns a parent path" do
-			path = Protocol::URL::Path["/a/b"]
+		it "identifies encoded files and directories" do
+			expect(Protocol::URL::Path["/a/b/"]).to be(:directory?)
+			expect(Protocol::URL::Path["/a/b"]).not.to be(:directory?)
+		end
+		
+		it "identifies component-backed files and directories" do
+			expect(Protocol::URL::Path[["", "a", "b", ""]]).to be(:directory?)
+			expect(Protocol::URL::Path[["", "a", "b"]]).not.to be(:directory?)
+		end
+		
+		it "returns the final decoded component as the basename" do
+			expect(Protocol::URL::Path["/a/b%2Fc"].basename).to be == "b/c"
+		end
+		
+		it "returns an empty basename for a directory" do
+			expect(Protocol::URL::Path["/a/b/"].basename).to be == ""
+		end
+		
+		it "returns no basename for an empty path" do
+			expect(Protocol::URL::Path[""].basename).to be_nil
+		end
+		
+		it "returns an absolute parent path" do
+			expect(Protocol::URL::Path["/a/b"].parent).to be == Protocol::URL::Path["/a"]
+		end
+		
+		it "returns a relative parent path" do
+			expect(Protocol::URL::Path["a/b"].parent).to be == Protocol::URL::Path["a"]
+		end
+		
+		it "preserves encoded component boundaries in the parent" do
+			expect(Protocol::URL::Path["/a%2Fb/c"].parent).to be == Protocol::URL::Path["/a%2Fb"]
+		end
+		
+		it "removes a trailing directory component" do
+			expect(Protocol::URL::Path["/a/b/"].parent).to be == Protocol::URL::Path["/a/b"]
+		end
+		
+		it "returns the root as the parent of an absolute top-level path" do
+			expect(Protocol::URL::Path["/a"].parent).to be == Protocol::URL::Path["/"]
+		end
+		
+		it "does not traverse above the root or empty path" do
+			root = Protocol::URL::Path["/"]
+			empty = Protocol::URL::Path[""]
 			
-			expect(path.parent).to be == Protocol::URL::Path["/a"]
+			expect(root.parent).to be_equal(root)
+			expect(empty.parent).to be_equal(empty)
+		end
+		
+		it "identifies an empty path" do
+			expect(Protocol::URL::Path[""]).to be(:empty?)
+			expect(Protocol::URL::Path["/"]).not.to be(:empty?)
 		end
 	end
 	
@@ -225,6 +281,22 @@ describe Protocol::URL::Path do
 		it "unescapes unicode characters" do
 			result = Protocol::URL::Path["/files/%E2%9D%A4%EF%B8%8F.txt"].local_path
 			expect(result).to be == "/files/❤️.txt"
+		end
+		
+		it "rejects invalid component encoding" do
+			path = Protocol::URL::Path[["\xFF".dup.force_encoding(::Encoding::UTF_8)]]
+			
+			expect do
+				path.local_path
+			end.to raise_exception(ArgumentError, message: be == "Path has invalid encoding!")
+		end
+		
+		it "rejects components unavailable in the requested encoding" do
+			path = Protocol::URL::Path[["❤️.txt"]]
+			
+			expect do
+				path.local_path(encoding: ::Encoding::US_ASCII)
+			end.to raise_exception(ArgumentError, message: be == "Path could not be converted to a local path!")
 		end
 		
 		it "preserves empty path" do
