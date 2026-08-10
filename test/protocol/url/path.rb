@@ -214,6 +214,14 @@ describe Protocol::URL::Path do
 			end
 		end
 		
+		it "rejects encodings that are not ASCII-compatible" do
+			path = "/documents".encode(Encoding::UTF_16LE)
+			
+			expect do
+				Protocol::URL::Path.parse(path)
+			end.to raise_exception(Protocol::URL::InvalidPathError)
+		end
+		
 		it "rejects query and fragment delimiters" do
 			expect do
 				Protocol::URL::Path.parse("/search?query=test")
@@ -575,6 +583,12 @@ describe Protocol::URL::Path do
 		end
 		
 		with "security: encoded path separators" do
+			it "recognizes encoded platform separators" do
+				expect(Protocol::URL::Path.send(:encoded_local_separator?, "safe%2Fname", nil)).to be == true
+				expect(Protocol::URL::Path.send(:encoded_local_separator?, "safe%5Cname", "\\")).to be == true
+				expect(Protocol::URL::Path.send(:encoded_local_separator?, "safe%5Cname", nil)).to be == false
+			end
+			
 			it "rejects encoded forward slashes" do
 				expect do
 					Protocol::URL::Path.to_local_path("/folder/safe%2Fname/file.txt")

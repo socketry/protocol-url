@@ -244,11 +244,7 @@ module Protocol
 				encoded_path = path.is_a?(String) ? path : join(components)
 				
 				components = components.map do |component|
-					if component.match?(/%2F/i)
-						raise InvalidPathError.new(encoded_path, "converted to a local path", "it contains an encoded local path separator")
-					end
-					
-					if File::ALT_SEPARATOR && component.match?(/%5C/i)
+					if encoded_local_separator?(component)
 						raise InvalidPathError.new(encoded_path, "converted to a local path", "it contains an encoded local path separator")
 					end
 					
@@ -264,6 +260,22 @@ module Protocol
 				return File.join(*components)
 			end
 			
+			# Check whether a component contains an encoded platform path separator.
+			# @parameter component [String] The encoded URL path component.
+			# @parameter alternate_separator [String | Nil] The platform's alternate path separator.
+			# @returns [Boolean] Whether the component contains an encoded local path separator.
+			def self.encoded_local_separator?(component, alternate_separator = File::ALT_SEPARATOR)
+				return true if component.match?(/%2F/i)
+				return true if alternate_separator && component.match?(/%5C/i)
+				
+				return false
+			end
+			private_class_method :encoded_local_separator?
+			
+			# Parse and canonicalize one encoded URL path component.
+			# @parameter path [String] The complete path, used for error reporting.
+			# @parameter component [String] The encoded URL path component.
+			# @returns [String] The canonical encoded component.
 			def self.parse_component(path, component)
 				output = String.new.b
 				index = 0
@@ -315,6 +327,9 @@ module Protocol
 			end
 			private_class_method :parse_component
 			
+			# Decode an ASCII hexadecimal digit.
+			# @parameter byte [Integer | Nil] The byte to decode.
+			# @returns [Integer | Nil] The decoded value, or `nil` for a non-hexadecimal byte.
 			def self.hexadecimal_value(byte)
 				if byte && byte >= 48 && byte <= 57
 					return byte - 48
@@ -342,6 +357,9 @@ module Protocol
 			end
 			private_class_method :path_character_byte?
 			
+			# Check whether a byte is an RFC 3986 unreserved character.
+			# @parameter byte [Integer] The byte to check.
+			# @returns [Boolean] Whether the byte is unreserved.
 			def self.unreserved_byte?(byte)
 				if byte >= 65 && byte <= 90
 					return true
