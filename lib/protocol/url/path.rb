@@ -17,6 +17,7 @@ module Protocol
 			
 			# The path separator.
 			SEPARATOR = "/"
+			
 			EMPTY_COMPONENTS = [].freeze
 			ROOT_COMPONENTS = ["", ""].freeze
 			INVALID_COMPONENT_PATTERN = /([^a-zA-Z0-9_\-\.~!$&'()*+,;=:@]+)/.freeze
@@ -61,18 +62,38 @@ module Protocol
 			# @parameter encoded [String | Nil] The encoded URL path.
 			# @parameter components [Array(String) | Nil] The decoded path components.
 			def initialize(encoded, components = nil)
-				@encoded = encoded
+				if encoded
+					@encoded = -encoded
+				end
 				
-				if components == [""]
-					components = ROOT_COMPONENTS
-				elsif encoded.nil? && components.nil?
+				if encoded.nil? && components.nil?
 					components = EMPTY_COMPONENTS
 				elsif components && !components.frozen?
 					# Only dup if we need to:
-					components = components.dup.freeze
+					components = components.dup.map!(&:-@).freeze
 				end
 				
 				@components = components
+			end
+			
+			# Freeze the path and materialize both representations as immutable values.
+			# @returns [Path] The frozen path.
+			def freeze
+				return self if frozen?
+				
+				if @components and !@components.frozen?
+					@components = @components.dup.freeze
+				else
+					self.components # Already calls freeze.
+				end
+				
+				if @encoded and !@encoded.frozen?
+					@encoded.freeze
+				else
+					self.encoded # Already calls freeze.
+				end
+				
+				return super
 			end
 			
 			# @returns [Boolean] Whether the path begins at the URL path root.
@@ -143,7 +164,7 @@ module Protocol
 			# @returns [Array(String)] The decoded components, preserving their boundaries.
 			def components
 				@components ||= @encoded.split(SEPARATOR, -1).map! do |component|
-					Encoding.unescape(component)
+					Encoding.unescape(component).freeze
 				end.freeze
 			end
 			
@@ -304,7 +325,8 @@ module Protocol
 				# Build the relative path components
 				relative_components = [".."] * up_levels + target_components[common_length..-1]
 				
-				return Path.new(nil, relative_components)
+				# We know that all path components should be frozen:
+				return Path.new(nil, relative_components.freeze)
 			end
 			
 			private

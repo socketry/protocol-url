@@ -25,13 +25,6 @@ describe Protocol::URL::Path do
 			expect(path.encoded).to be == "/a/b%2Fc"
 		end
 		
-		it "canonicalizes the absolute root component" do
-			path = Protocol::URL::Path[[""]]
-			
-			expect(path.components).to be == ["", ""]
-			expect(path.encoded).to be == "/"
-			expect(path).to be == Protocol::URL::Path["/"]
-		end
 	end
 	
 	with ".new" do
@@ -40,6 +33,26 @@ describe Protocol::URL::Path do
 			
 			expect(path).to be(:empty?)
 			expect(path.encoded).to be == ""
+		end
+	end
+	
+	with "#freeze" do
+		it "materializes and freezes both representations" do
+			path = Protocol::URL::Path["/a/b"]
+			
+			expect(path.freeze).to be_equal(path)
+			expect(path).to be(:frozen?)
+			expect(path.encoded).to be(:frozen?)
+			expect(path.components).to be(:frozen?)
+			expect(path.freeze).to be_equal(path)
+		end
+		
+		it "freezes paths constructed from components" do
+			path = Protocol::URL::Path[["", "a", "b/c"]]
+			
+			expect(path.freeze).to be_equal(path)
+			expect(path.encoded).to be == "/a/b%2Fc"
+			expect(path.components).to be == ["", "a", "b/c"]
 		end
 	end
 	
