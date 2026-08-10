@@ -92,22 +92,24 @@ The {ruby Protocol::URL::Path} module provides powerful utilities for working wi
 
 ### Trust Boundaries
 
-Use {ruby Protocol::URL::Path.normalize} as the validation boundary for an untrusted, encoded, absolute URL path. After normalization, structural helpers such as `split`, `join`, and `simplify` can operate on the trusted result:
+Use {ruby Protocol::URL::Path.parse} as the validation boundary for an untrusted, encoded URL path. It returns canonical, trusted components for either absolute or relative input:
 
 ``` ruby
 untrusted_path = "/documents/%2e%2e/reports/summary.pdf"
-normalized_path = Protocol::URL::Path.normalize(untrusted_path)
-# => "/reports/summary.pdf"
+components = Protocol::URL::Path.parse(untrusted_path)
+# => ["", "reports", "summary.pdf"]
 ```
 
-`simplify` only resolves path components. It does not validate URI syntax, decode percent escapes, or reject traversal above an absolute root, so it is not a substitute for `normalize` at an external-input boundary.
+`split` is a lossless lexical operation and does not validate its result. `simplify` only resolves already-trusted path components. Neither is a substitute for `parse` at an external-input boundary.
 
-`to_local_path` also performs conversion rather than validation. Normalize untrusted input before converting it for filesystem use:
+`to_local_path` accepts either an encoded string, which it parses first, or components already returned by `parse`:
 
 ``` ruby
-normalized_path = Protocol::URL::Path.normalize(untrusted_path)
-local_path = Protocol::URL::Path.to_local_path(normalized_path)
+components = Protocol::URL::Path.parse(untrusted_path)
+local_path = Protocol::URL::Path.to_local_path(components)
 ```
+
+Encoded separators remain inside their URL component during parsing. Filesystem conversion rejects an encoded separator when the local platform cannot represent it faithfully as one component.
 
 ### Splitting and Joining Paths
 
@@ -170,7 +172,7 @@ Protocol::URL::Path.expand("/a/b/file.html", "other.html", false)
 
 ### Converting to Local File System Paths
 
-Convert trusted URL paths to local file system paths. For external input, call `normalize` first as shown above:
+Convert URL paths or parsed components to local file system paths:
 
 ``` ruby
 # Convert URL path to local file system path:
@@ -181,12 +183,9 @@ Protocol::URL::Path.to_local_path("/documents/report.pdf")
 Protocol::URL::Path.to_local_path("/files/My%20Document.txt")
 # => "/files/My Document.txt"
 
-# Security: Preserves percent-encoded path separators
-# This prevents directory traversal attacks:
+# Encoded separators that cannot be represented as one local component raise:
 Protocol::URL::Path.to_local_path("/folder/safe%2Fname/file.txt")
-# => "/folder/safe%2Fname/file.txt"
-# %2F (/) and %5C (\) are NOT decoded, preventing them from creating
-# additional path components in the file system
+# raises Protocol::URL::InvalidPathError
 ```
 
 ## Working with References
@@ -286,9 +285,9 @@ messy.to_s  # => "https://example.com/a/c/d"
 
 When manipulating paths:
 - Use {ruby Protocol::URL::Path.expand} for combining paths
-- Use {ruby Protocol::URL::Path.normalize} to validate untrusted, encoded, absolute URL paths
+- Use {ruby Protocol::URL::Path.parse} to validate untrusted, encoded URL paths
 - Use {ruby Protocol::URL::Path.simplify} to remove dot segments from trusted components
-- Normalize untrusted paths before passing them to {ruby Protocol::URL::Path.to_local_path}
+- Pass parsed components directly to {ruby Protocol::URL::Path.to_local_path}
 - Remember that `expand` pops the last component by default (RFC 3986 behavior)
 
 ### Encoding

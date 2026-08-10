@@ -252,9 +252,11 @@ describe Protocol::URL::Relative do
 			expect(url.to_local_path).to be == "/files/❤️.txt"
 		end
 		
-		it "preserves encoded path separators" do
+		it "rejects encoded local path separators" do
 			url = Protocol::URL::Relative.new("/safe%2Fname/file.txt")
-			expect(url.to_local_path).to be == "/safe%2Fname/file.txt"
+			expect do
+				url.to_local_path
+			end.to raise_exception(Protocol::URL::InvalidPathError)
 		end
 	end
 end

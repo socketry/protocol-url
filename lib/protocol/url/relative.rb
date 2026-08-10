@@ -34,8 +34,8 @@ module Protocol
 			
 			# Convert the URL path to a local filesystem path.
 			#
-			# This method does not validate the path. If the URL was constructed from
-			# untrusted input, normalize its path with {Path.normalize} first.
+			# The path is parsed and validated before conversion. Encoded separators
+			# that cannot be represented as one local path component are rejected.
 			#
 			# @returns [String] The local filesystem path.
 			def to_local_path
@@ -119,7 +119,7 @@ module Protocol
 			#
 			# This method performs structural simplification only. It does not validate
 			# URI syntax, canonicalize percent escapes, or provide a security boundary.
-			# Use {Path.normalize} for an untrusted, encoded, absolute URL path.
+			# Use {Path.parse} for an untrusted, encoded URL path.
 			#
 			# @returns [self] The normalized URL.
 			#

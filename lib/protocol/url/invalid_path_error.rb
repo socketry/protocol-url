@@ -5,20 +5,25 @@
 
 module Protocol
 	module URL
-		# Raised when a URL path cannot be normalized safely.
+		# Raised when a URL path cannot be parsed or converted safely.
 		class InvalidPathError < ArgumentError
 			# Initialize the invalid path error.
 			# @parameter path [String] The invalid URL path.
+			# @parameter operation [String] The operation that could not be completed.
 			# @parameter reason [String] The reason the path is invalid.
-			def initialize(path, reason)
+			def initialize(path, operation, reason)
 				@path = path
+				@operation = operation
 				@reason = reason
 				
-				super("Invalid URL path #{path.inspect}: #{reason}")
+				super("URL path #{path.inspect} could not be #{operation} because #{reason}!")
 			end
 			
 			# The invalid URL path.
 			attr :path
+			
+			# The operation that could not be completed.
+			attr :operation
 			
 			# The reason the path is invalid.
 			attr :reason

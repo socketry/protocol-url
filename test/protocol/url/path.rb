@@ -136,63 +136,72 @@ describe Protocol::URL::Path do
 		end
 	end
 	
-	with ".normalize" do
-		it "normalizes separators and dot segments" do
-			expect(Protocol::URL::Path.normalize("/a//b/./c/../d")).to be == "/a/b/d"
-			expect(Protocol::URL::Path.normalize("/a/../b/")).to be == "/b/"
+	with ".parse" do
+		it "parses absolute paths into canonical components" do
+			expect(Protocol::URL::Path.parse("/a//b/./c/../d")).to be == ["", "a", "b", "d"]
+			expect(Protocol::URL::Path.parse("/a/../b/")).to be == ["", "b", ""]
 		end
 		
 		it "prevents protocol-relative paths" do
-			expect(Protocol::URL::Path.normalize("//example.com/index")).to be == "/example.com/index"
+			expect(Protocol::URL::Path.parse("//example.com/index")).to be == ["", "example.com", "index"]
 		end
 		
 		it "canonicalizes percent escapes without changing reserved characters" do
-			expect(Protocol::URL::Path.normalize("/a+b/%7euser/%3f")).to be == "/a+b/~user/%3F"
+			expect(Protocol::URL::Path.parse("/a+b/%7euser/%3f")).to be == ["", "a+b", "~user", "%3F"]
 		end
 		
 		it "accepts the RFC 3986 path character grammar" do
-			path = "/AZaz09-._~!$&'()*+,;=:@"
-			expect(Protocol::URL::Path.normalize(path)).to be == path
+			expect(Protocol::URL::Path.parse("AZaz09-._~!$&'()*+,;=:@")).to be == ["AZaz09-._~!$&'()*+,;=:@"]
 		end
 		
 		it "preserves percent-encoded non-ASCII bytes" do
-			expect(Protocol::URL::Path.normalize("/caf%c3%a9")).to be == "/caf%C3%A9"
+			expect(Protocol::URL::Path.parse("/caf%c3%a9")).to be == ["", "caf%C3%A9"]
 		end
 		
-		it "normalizes encoded dot segments" do
-			expect(Protocol::URL::Path.normalize("/a/%2e%2e/b")).to be == "/b"
+		it "resolves encoded dot segments" do
+			expect(Protocol::URL::Path.parse("/a/%2e%2e/b")).to be == ["", "b"]
 		end
 		
 		it "does not decode percent escapes more than once" do
-			expect(Protocol::URL::Path.normalize("/%252e%252e/value")).to be == "/%252e%252e/value"
+			expect(Protocol::URL::Path.parse("/%252e%252e/value")).to be == ["", "%252e%252e", "value"]
+		end
+		
+		it "parses and simplifies relative paths" do
+			expect(Protocol::URL::Path.parse("a/../b")).to be == ["b"]
+			expect(Protocol::URL::Path.parse("../a")).to be == ["..", "a"]
+			expect(Protocol::URL::Path.parse("a/../../b")).to be == ["..", "b"]
+			expect(Protocol::URL::Path.parse("a/..")).to be == []
+			expect(Protocol::URL::Path.parse(".")).to be == []
 		end
 		
 		it "rejects traversal above the root" do
 			expect do
-				Protocol::URL::Path.normalize("/../../etc/passwd")
-			end.to raise_exception(Protocol::URL::InvalidPathError)
+				Protocol::URL::Path.parse("/../../etc/passwd")
+			end.to raise_exception(
+				Protocol::URL::InvalidPathError,
+				message: be == 'URL path "/../../etc/passwd" could not be parsed because it traverses above the root!'
+			)
 			
 			expect do
-				Protocol::URL::Path.normalize("/%2e%2e/etc/passwd")
+				Protocol::URL::Path.parse("/%2e%2e/etc/passwd")
 			end.to raise_exception(Protocol::URL::InvalidPathError)
 		end
 		
-		it "rejects relative paths" do
-			expect do
-				Protocol::URL::Path.normalize("relative/path")
-			end.to raise_exception(Protocol::URL::InvalidPathError)
+		it "preserves encoded separators within their components" do
+			expect(Protocol::URL::Path.parse("/a%2fb")).to be == ["", "a%2Fb"]
+			expect(Protocol::URL::Path.parse("/a%5cb")).to be == ["", "a%5Cb"]
 		end
 		
 		it "rejects malformed percent escapes" do
 			expect do
-				Protocol::URL::Path.normalize("/invalid%2")
+				Protocol::URL::Path.parse("/invalid%2")
 			end.to raise_exception(Protocol::URL::InvalidPathError)
 		end
 		
 		it "rejects characters outside the RFC 3986 path grammar" do
 			[" ", '"', "<", ">", "[", "]", "^", "`", "{", "|", "}"].each do |character|
 				expect do
-					Protocol::URL::Path.normalize("/invalid#{character}path")
+					Protocol::URL::Path.parse("/invalid#{character}path")
 				end.to raise_exception(Protocol::URL::InvalidPathError)
 			end
 		end
@@ -200,43 +209,33 @@ describe Protocol::URL::Path do
 		it "rejects raw non-ASCII bytes with a structured error" do
 			["/café", "/invalid\xFF".b.force_encoding(Encoding::UTF_8)].each do |path|
 				expect do
-					Protocol::URL::Path.normalize(path)
+					Protocol::URL::Path.parse(path)
 				end.to raise_exception(Protocol::URL::InvalidPathError)
 			end
 		end
 		
 		it "rejects query and fragment delimiters" do
 			expect do
-				Protocol::URL::Path.normalize("/search?query=test")
+				Protocol::URL::Path.parse("/search?query=test")
 			end.to raise_exception(Protocol::URL::InvalidPathError)
 			
 			expect do
-				Protocol::URL::Path.normalize("/document#section")
+				Protocol::URL::Path.parse("/document#section")
 			end.to raise_exception(Protocol::URL::InvalidPathError)
 		end
 		
-		it "rejects ambiguous separators" do
+		it "rejects raw ambiguous separators" do
 			expect do
-				Protocol::URL::Path.normalize("/a%2fb")
-			end.to raise_exception(Protocol::URL::InvalidPathError)
-			
-			expect do
-				Protocol::URL::Path.normalize("/a%5cb")
-			end.to raise_exception(Protocol::URL::InvalidPathError)
-			
-			expect do
-				Protocol::URL::Path.normalize("/a\\b")
+				Protocol::URL::Path.parse("/a\\b")
 			end.to raise_exception(Protocol::URL::InvalidPathError)
 		end
 		
-		it "rejects null bytes" do
+		it "rejects raw null bytes and preserves encoded null bytes" do
 			expect do
-				Protocol::URL::Path.normalize("/a\0b")
+				Protocol::URL::Path.parse("/a\0b")
 			end.to raise_exception(Protocol::URL::InvalidPathError)
 			
-			expect do
-				Protocol::URL::Path.normalize("/a%00b")
-			end.to raise_exception(Protocol::URL::InvalidPathError)
+			expect(Protocol::URL::Path.parse("/a%00b")).to be == ["", "a%00b"]
 		end
 	end
 	
@@ -535,6 +534,11 @@ describe Protocol::URL::Path do
 	end
 	
 	with ".to_local_path" do
+		it "converts parsed components" do
+			components = Protocol::URL::Path.parse("/documents/report.pdf")
+			expect(Protocol::URL::Path.to_local_path(components)).to be == "/documents/report.pdf"
+		end
+		
 		it "converts simple absolute path" do
 			result = Protocol::URL::Path.to_local_path("/documents/report.pdf")
 			expect(result).to be == "/documents/report.pdf"
@@ -571,43 +575,40 @@ describe Protocol::URL::Path do
 		end
 		
 		with "security: encoded path separators" do
-			it "preserves %2F (encoded forward slash)" do
-				# %2F is the encoded form of /
-				# Preserving it prevents creating additional path components
-				result = Protocol::URL::Path.to_local_path("/folder/safe%2Fname/file.txt")
-				expect(result).to be == "/folder/safe%2Fname/file.txt"
+			it "rejects encoded forward slashes" do
+				expect do
+					Protocol::URL::Path.to_local_path("/folder/safe%2Fname/file.txt")
+				end.to raise_exception(
+					Protocol::URL::InvalidPathError,
+					message: be == 'URL path "/folder/safe%2Fname/file.txt" could not be converted to a local path because it contains an encoded local path separator!'
+				)
 			end
 			
-			it "preserves %5C (encoded backslash)" do
-				# %5C is the encoded form of \
-				# Preserving it prevents creating path separators on Windows
-				result = Protocol::URL::Path.to_local_path("/folder/name%5Cfile.txt")
-				expect(result).to be == "/folder/name%5Cfile.txt"
+			if File::ALT_SEPARATOR
+				it "rejects encoded backslashes on platforms where they are separators" do
+					expect do
+						Protocol::URL::Path.to_local_path("/folder/name%5Cfile.txt")
+					end.to raise_exception(Protocol::URL::InvalidPathError)
+				end
+			else
+				it "decodes encoded backslashes when they are not separators" do
+					expect(Protocol::URL::Path.to_local_path("/folder/name%5Cfile.txt")).to be == "/folder/name\\file.txt"
+				end
 			end
 			
-			it "preserves multiple encoded separators" do
-				# Multiple %2F should all be preserved
-				result = Protocol::URL::Path.to_local_path("/a%2Fb%2Fc/d.txt")
-				expect(result).to be == "/a%2Fb%2Fc/d.txt"
+			it "resolves encoded dot segments before conversion" do
+				expect(Protocol::URL::Path.to_local_path("/folder/%2E%2E/file.txt")).to be == "/file.txt"
 			end
 			
-			it "preserves encoded separators while decoding other characters" do
-				# %20 (space) should be decoded, %2F should be preserved
-				result = Protocol::URL::Path.to_local_path("/folder/My%20File%2Fname.txt")
-				expect(result).to be == "/folder/My File%2Fname.txt"
-			end
-			
-			it "allows encoded dots (not path traversal when literal)" do
-				# %2E is the encoded form of .
-				# Two of them (%2E%2E) as literal characters are fine - they're not ".."
-				result = Protocol::URL::Path.to_local_path("/folder/%2E%2E/file.txt")
-				expect(result).to be == "/folder/../file.txt"
+			it "rejects encoded null bytes" do
+				expect do
+					Protocol::URL::Path.to_local_path("/folder/a%00b")
+				end.to raise_exception(Protocol::URL::InvalidPathError)
 			end
 		end
 		
 		with "edge cases" do
 			it "handles multiple consecutive slashes" do
-				# Multiple slashes create empty components, File.join collapses them
 				result = Protocol::URL::Path.to_local_path("/a//b///c")
 				expect(result).to be == "/a/b/c"
 			end

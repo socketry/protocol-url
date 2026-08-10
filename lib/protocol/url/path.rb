@@ -33,6 +33,61 @@ module Protocol
 				return path.split("/", -1)
 			end
 			
+			# Parse an untrusted, encoded URL path into canonical components.
+			#
+			# Literal characters must match the ASCII path grammar from RFC 3986;
+			# all other octets must be percent-encoded. Unreserved percent escapes
+			# are decoded, remaining escapes are canonicalized, and dot segments are
+			# resolved. Encoded separators remain within their original component.
+			#
+			# Absolute paths cannot traverse above their root. Leading parent segments
+			# in relative paths are preserved for later resolution against a base path.
+			#
+			# This is the validation boundary for external URL paths. {.split} is a
+			# lossless lexical operation and does not provide the same guarantee.
+			#
+			# @parameter path [String] The encoded URL path.
+			# @returns [Array(String)] The validated, canonical path components.
+			# @raises [InvalidPathError] If the path is malformed or unsafe.
+			def self.parse(path)
+				unless path.encoding.ascii_compatible?
+					raise InvalidPathError.new(path, "parsed", "its encoding is not ASCII-compatible")
+				end
+				
+				components = split(path.b)
+				components.map! do |component|
+					parse_component(path, component).force_encoding(path.encoding)
+				end
+				
+				absolute = components.first == ""
+				
+				if absolute
+					depth = 0
+					
+					components.drop(1).each do |component|
+						if component.empty? || component == "."
+							next
+						elsif component == ".."
+							if depth.zero?
+								raise InvalidPathError.new(path, "parsed", "it traverses above the root")
+							end
+							
+							depth -= 1
+						else
+							depth += 1
+						end
+					end
+				end
+				
+				components = simplify(components)
+				
+				# A relative path that resolves completely to the current directory has
+				# the same canonical representation as an empty relative path.
+				components.clear if !absolute && components == [""]
+				
+				return components
+			end
+			
 			# Join the given path components into a single path.
 			#
 			# @parameter components [Array(String)] The path components to join.
@@ -53,7 +108,7 @@ module Protocol
 			#
 			# This is a structural operation for paths that are already trusted. It does
 			# not validate URI syntax, decode percent escapes, or reject traversal above
-			# an absolute root. Use {.normalize} for an untrusted, encoded URL path.
+			# an absolute root. Use {.parse} for an untrusted, encoded URL path.
 			#
 			# @parameter components [Array(String)] The path components to simplify.
 			# @returns [Array(String)] The simplified path components.
@@ -89,84 +144,6 @@ module Protocol
 				end
 				
 				return output
-			end
-			
-			# Normalize an untrusted, encoded, absolute URL path.
-			#
-			# Repeated separators and dot segments are removed, unreserved percent
-			# escapes are decoded, and remaining escapes are canonicalized. Ambiguous
-			# separators and traversal above the root are rejected. Literal characters
-			# must match the ASCII path grammar from RFC 3986; all other octets must be
-			# percent-encoded.
-			#
-			# This is the validation boundary for external URL paths. The result is safe
-			# for subsequent structural operations such as {.split} and {.simplify}.
-			# Filesystem conversion remains a separate operation; pass the normalized
-			# result to {.to_local_path} when one is required.
-			#
-			# @parameter path [String] The encoded, absolute URL path.
-			# @returns [String] The normalized URL path.
-			# @raises [InvalidPathError] If the path is malformed or unsafe.
-			def self.normalize(path)
-				unless path.encoding.ascii_compatible?
-					raise InvalidPathError.new(path, "expected an ASCII-compatible encoding")
-				end
-				
-				encoded_path = path.b
-				
-				unless encoded_path.getbyte(0) == 47
-					raise InvalidPathError.new(path, "expected an absolute path")
-				end
-				
-				components = []
-				directory = false
-				parts = encoded_path.split(SEPARATOR, -1)
-				
-				parts.drop(1).each_with_index do |part, index|
-					component = normalize_component(path, part)
-					last = index == parts.size - 2
-					
-					if component.empty?
-						if last
-							directory = true
-						end
-						
-						next
-					end
-					
-					if component == "."
-						if last
-							directory = true
-						end
-						
-						next
-					end
-					
-					if component == ".."
-						if components.empty?
-							raise InvalidPathError.new(path, "cannot traverse above the root")
-						end
-						
-						components.pop
-						
-						if last
-							directory = true
-						end
-						
-						next
-					end
-					
-					components << component
-					directory = false
-				end
-				
-				normalized = SEPARATOR.b + components.join(SEPARATOR)
-				
-				if directory && normalized != SEPARATOR
-					normalized << SEPARATOR
-				end
-				
-				return normalized.force_encoding(path.encoding)
 			end
 			
 			# @parameter pop [Boolean] whether to remove the last path component of the base path, to conform to URI merging behaviour, as defined by RFC2396.
@@ -243,44 +220,51 @@ module Protocol
 				return join(relative_components)
 			end
 			
-			# Convert a trusted URL path to a local file system path using the platform's file separator.
+			# Convert a URL path to a local file system path using the platform's file separator.
 			#
-			# This method splits the URL path on `/` characters, unescapes each component using
-			# {Encoding.unescape_path} (which preserves encoded separators), then joins the
-			# components using `File.join`.
+			# String paths are parsed and validated first. Components already returned by
+			# {.parse} can be passed directly. Each component is then decoded and joined
+			# using `File.join`.
 			#
-			# This method performs conversion, not validation. Untrusted external input
-			# must first be passed through {.normalize}:
+			# Encoded separators that would become separators on the local platform are
+			# rejected because they cannot be represented faithfully as one filesystem
+			# component. In particular, `%2F` is rejected on all platforms and `%5C` is
+			# rejected when backslash is a platform separator.
 			#
-			# 	local_path = Path.to_local_path(Path.normalize(untrusted_path))
-			#
-			# Percent-encoded path separators (`%2F` for `/` and `%5C` for `\`) are NOT decoded,
-			# preventing them from being interpreted as directory boundaries. This ensures that
-			# URL path components map directly to file system path components.
-			#
-			# @parameter path [String] The trusted, percent-encoded URL path to convert.
+			# @parameter path [String | Array(String)] The encoded URL path or parsed components.
 			# @returns [String] The local file system path.
+			# @raises [InvalidPathError] If a component cannot be represented safely.
 			#
 			# @example Generating local paths.
 			# 	Path.to_local_path("/documents/report.pdf")  # => "/documents/report.pdf"
-			# 	Path.to_local_path("/files/My%20Document.txt")  # => "/files/My Document.txt"
+			# 	Path.to_local_path(Path.parse("/files/My%20Document.txt"))  # => "/files/My Document.txt"
 			#
-			# @example Preserves encoded separators.
-			# 	Path.to_local_path("/folder/safe%2Fname/file.txt")
-			# 	# => "/folder/safe%2Fname/file.txt"
-			# 	# %2F is NOT decoded to prevent creating additional path components
 			def self.to_local_path(path)
-				components = split(path)
+				components = path.is_a?(String) ? parse(path) : path
+				encoded_path = path.is_a?(String) ? path : join(components)
 				
-				# Unescape each component, preserving encoded path separators
-				components.map! do |component|
-					Encoding.unescape_path(component)
+				components = components.map do |component|
+					if component.match?(/%2F/i)
+						raise InvalidPathError.new(encoded_path, "converted to a local path", "it contains an encoded local path separator")
+					end
+					
+					if File::ALT_SEPARATOR && component.match?(/%5C/i)
+						raise InvalidPathError.new(encoded_path, "converted to a local path", "it contains an encoded local path separator")
+					end
+					
+					decoded = Encoding.unescape(component)
+					
+					if decoded.include?("\0")
+						raise InvalidPathError.new(encoded_path, "converted to a local path", "it contains an encoded null byte")
+					end
+					
+					decoded
 				end
 				
 				return File.join(*components)
 			end
 			
-			def self.normalize_component(path, component)
+			def self.parse_component(path, component)
 				output = String.new.b
 				index = 0
 				
@@ -288,15 +272,15 @@ module Protocol
 					byte = component.getbyte(index)
 					
 					if byte == 0 || byte < 32 || byte == 127
-						raise InvalidPathError.new(path, "contains a control character")
+						raise InvalidPathError.new(path, "parsed", "it contains a control character")
 					end
 					
 					if byte == 92
-						raise InvalidPathError.new(path, "contains an ambiguous separator")
+						raise InvalidPathError.new(path, "parsed", "it contains an ambiguous separator")
 					end
 					
 					if byte == 35 || byte == 63
-						raise InvalidPathError.new(path, "contains a query or fragment delimiter")
+						raise InvalidPathError.new(path, "parsed", "it contains a query or fragment delimiter")
 					end
 					
 					if byte == 37
@@ -304,18 +288,10 @@ module Protocol
 						low = hexadecimal_value(component.getbyte(index + 2))
 						
 						unless high && low
-							raise InvalidPathError.new(path, "contains a malformed percent escape")
+							raise InvalidPathError.new(path, "parsed", "it contains a malformed percent escape")
 						end
 						
 						byte = (high << 4) | low
-						
-						if byte == 0 || byte < 32 || byte == 127
-							raise InvalidPathError.new(path, "contains an encoded control character")
-						end
-						
-						if byte == 47 || byte == 92
-							raise InvalidPathError.new(path, "contains an encoded separator")
-						end
 						
 						if unreserved_byte?(byte)
 							output << byte
@@ -328,7 +304,7 @@ module Protocol
 					end
 					
 					unless path_character_byte?(byte)
-						raise InvalidPathError.new(path, "contains a character outside the URI path grammar")
+						raise InvalidPathError.new(path, "parsed", "it contains a character outside the URI path grammar")
 					end
 					
 					output << byte
@@ -337,7 +313,7 @@ module Protocol
 				
 				return output
 			end
-			private_class_method :normalize_component
+			private_class_method :parse_component
 			
 			def self.hexadecimal_value(byte)
 				if byte && byte >= 48 && byte <= 57

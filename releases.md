@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-  - Add strict normalization for encoded, absolute URL paths.
+  - Add strict parsing for encoded URL paths.
 
 ## v0.10.0
 
