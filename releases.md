@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-  - Add strict parsing for encoded URL paths.
+  - Add strict splitting for encoded URL paths.
 
 ## v0.10.0
 

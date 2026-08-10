@@ -12,15 +12,23 @@ module Protocol
 		module Path
 			SEPARATOR = "/"
 			
-			# Split the given path into its components.
+			# Split an untrusted, encoded URL path into canonical components.
+			#
+			# Literal characters must match the ASCII path grammar from RFC 3986;
+			# all other octets must be percent-encoded. Unreserved percent escapes
+			# are decoded and remaining escapes are canonicalized. Encoded separators
+			# remain within their original component.
+			#
+			# Dot segments are preserved. Use {.simplify} when they should be resolved.
 			# 
 			# - `split("")` => `[]`
 			# - `split("/")` => `["", ""]`
 			# - `split("/a/b/c")` => `["", "a", "b", "c"]`
 			# - `split("a/b/c/")` => `["a", "b", "c", ""]`
 			#
-			# @parameter path [String] The path to split.
-			# @returns [Array(String)] The path components.
+			# @parameter path [String] The encoded URL path to split.
+			# @returns [Array(String)] The validated, canonical path components.
+			# @raises [InvalidPathError] If the path is malformed or unsafe.
 			#
 			# @example Split an absolute path.
 			# 	Path.split("/documents/report.pdf")
@@ -30,60 +38,14 @@ module Protocol
 			# 	Path.split("images/logo.png")
 			# 	# => ["images", "logo.png"]
 			def self.split(path)
-				return path.split("/", -1)
-			end
-			
-			# Parse an untrusted, encoded URL path into canonical components.
-			#
-			# Literal characters must match the ASCII path grammar from RFC 3986;
-			# all other octets must be percent-encoded. Unreserved percent escapes
-			# are decoded, remaining escapes are canonicalized, and dot segments are
-			# resolved. Encoded separators remain within their original component.
-			#
-			# Absolute paths cannot traverse above their root. Leading parent segments
-			# in relative paths are preserved for later resolution against a base path.
-			#
-			# This is the validation boundary for external URL paths. {.split} is a
-			# lossless lexical operation and does not provide the same guarantee.
-			#
-			# @parameter path [String] The encoded URL path.
-			# @returns [Array(String)] The validated, canonical path components.
-			# @raises [InvalidPathError] If the path is malformed or unsafe.
-			def self.parse(path)
 				unless path.encoding.ascii_compatible?
-					raise InvalidPathError.new(path, "parsed", "its encoding is not ASCII-compatible")
+					raise InvalidPathError.new(path, "split", "its encoding is not ASCII-compatible")
 				end
 				
-				components = split(path.b)
+				components = path.b.split(SEPARATOR, -1)
 				components.map! do |component|
-					parse_component(path, component).force_encoding(path.encoding)
+					split_component(path, component).force_encoding(path.encoding)
 				end
-				
-				absolute = components.first == ""
-				
-				if absolute
-					depth = 0
-					
-					components.drop(1).each do |component|
-						if component.empty? || component == "."
-							next
-						elsif component == ".."
-							if depth.zero?
-								raise InvalidPathError.new(path, "parsed", "it traverses above the root")
-							end
-							
-							depth -= 1
-						else
-							depth += 1
-						end
-					end
-				end
-				
-				components = simplify(components)
-				
-				# A relative path that resolves completely to the current directory has
-				# the same canonical representation as an empty relative path.
-				components.clear if !absolute && components == [""]
 				
 				return components
 			end
@@ -101,14 +63,13 @@ module Protocol
 			# 	Path.join(["images", "logo.png"])
 			# 	# => "images/logo.png"
 			def self.join(components)
-				return components.join("/")
+				return components.join(SEPARATOR)
 			end
 			
 			# Simplify trusted path components by resolving "." and "..".
 			#
-			# This is a structural operation for paths that are already trusted. It does
-			# not validate URI syntax, decode percent escapes, or reject traversal above
-			# an absolute root. Use {.parse} for an untrusted, encoded URL path.
+			# This is a structural operation for components returned by {.split}. It does
+			# not validate URI syntax or decode percent escapes by itself.
 			#
 			# @parameter components [Array(String)] The path components to simplify.
 			# @returns [Array(String)] The simplified path components.
@@ -156,10 +117,10 @@ module Protocol
 			# 	Path.expand("/documents/reports/2024/", "../summary.pdf")
 			# 	# => "/documents/reports/summary.pdf"
 			def self.expand(base, relative, pop = true)
+				components = split(base)
+				
 				# Empty relative path means no change:
 				return base if relative.nil? || relative.empty?
-				
-				components = split(base)
 				
 				# RFC2396 Section 5.2:
 				# 6) a) All but the last segment of the base URI's path component is
@@ -171,7 +132,7 @@ module Protocol
 					components.pop
 				end
 				
-				relative = relative.split("/", -1)
+				relative = split(relative)
 				if relative.first == ""
 					components = relative
 				else
@@ -222,8 +183,8 @@ module Protocol
 			
 			# Convert a URL path to a local file system path using the platform's file separator.
 			#
-			# String paths are parsed and validated first. Components already returned by
-			# {.parse} can be passed directly. Each component is then decoded and joined
+			# String paths are split, validated, and simplified first. Components already
+			# returned by {.split} can be passed directly. Each component is then decoded and joined
 			# using `File.join`.
 			#
 			# Encoded separators that would become separators on the local platform are
@@ -231,16 +192,16 @@ module Protocol
 			# component. In particular, `%2F` is rejected on all platforms and `%5C` is
 			# rejected when backslash is a platform separator.
 			#
-			# @parameter path [String | Array(String)] The encoded URL path or parsed components.
+			# @parameter path [String | Array(String)] The encoded URL path or split components.
 			# @returns [String] The local file system path.
 			# @raises [InvalidPathError] If a component cannot be represented safely.
 			#
 			# @example Generating local paths.
 			# 	Path.to_local_path("/documents/report.pdf")  # => "/documents/report.pdf"
-			# 	Path.to_local_path(Path.parse("/files/My%20Document.txt"))  # => "/files/My Document.txt"
+			# 	Path.to_local_path(Path.split("/files/My%20Document.txt"))  # => "/files/My Document.txt"
 			#
 			def self.to_local_path(path)
-				components = path.is_a?(String) ? parse(path) : path
+				components = path.is_a?(String) ? simplify(split(path)) : simplify(path)
 				encoded_path = path.is_a?(String) ? path : join(components)
 				
 				components = components.map do |component|
@@ -272,11 +233,11 @@ module Protocol
 			end
 			private_class_method :encoded_local_separator?
 			
-			# Parse and canonicalize one encoded URL path component.
+			# Split and canonicalize one encoded URL path component.
 			# @parameter path [String] The complete path, used for error reporting.
 			# @parameter component [String] The encoded URL path component.
 			# @returns [String] The canonical encoded component.
-			def self.parse_component(path, component)
+			def self.split_component(path, component)
 				output = String.new.b
 				index = 0
 				
@@ -284,15 +245,15 @@ module Protocol
 					byte = component.getbyte(index)
 					
 					if byte == 0 || byte < 32 || byte == 127
-						raise InvalidPathError.new(path, "parsed", "it contains a control character")
+						raise InvalidPathError.new(path, "split", "it contains a control character")
 					end
 					
 					if byte == 92
-						raise InvalidPathError.new(path, "parsed", "it contains an ambiguous separator")
+						raise InvalidPathError.new(path, "split", "it contains an ambiguous separator")
 					end
 					
 					if byte == 35 || byte == 63
-						raise InvalidPathError.new(path, "parsed", "it contains a query or fragment delimiter")
+						raise InvalidPathError.new(path, "split", "it contains a query or fragment delimiter")
 					end
 					
 					if byte == 37
@@ -300,7 +261,7 @@ module Protocol
 						low = hexadecimal_value(component.getbyte(index + 2))
 						
 						unless high && low
-							raise InvalidPathError.new(path, "parsed", "it contains a malformed percent escape")
+							raise InvalidPathError.new(path, "split", "it contains a malformed percent escape")
 						end
 						
 						byte = (high << 4) | low
@@ -316,7 +277,7 @@ module Protocol
 					end
 					
 					unless path_character_byte?(byte)
-						raise InvalidPathError.new(path, "parsed", "it contains a character outside the URI path grammar")
+						raise InvalidPathError.new(path, "split", "it contains a character outside the URI path grammar")
 					end
 					
 					output << byte
@@ -325,7 +286,7 @@ module Protocol
 				
 				return output
 			end
-			private_class_method :parse_component
+			private_class_method :split_component
 			
 			# Decode an ASCII hexadecimal digit.
 			# @parameter byte [Integer | Nil] The byte to decode.

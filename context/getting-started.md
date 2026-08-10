@@ -92,24 +92,27 @@ The {ruby Protocol::URL::Path} module provides powerful utilities for working wi
 
 ### Trust Boundaries
 
-Use {ruby Protocol::URL::Path.parse} as the validation boundary for an untrusted, encoded URL path. It returns canonical, trusted components for either absolute or relative input:
+Use {ruby Protocol::URL::Path.split} as the validation boundary for an untrusted, encoded URL path. It validates URI path syntax, canonicalizes percent escapes, and returns components for either absolute or relative input. Dot segments are preserved for contextual resolution:
 
 ``` ruby
 untrusted_path = "/documents/%2e%2e/reports/summary.pdf"
-components = Protocol::URL::Path.parse(untrusted_path)
+components = Protocol::URL::Path.split(untrusted_path)
+# => ["", "documents", "..", "reports", "summary.pdf"]
+
+components = Protocol::URL::Path.simplify(components)
 # => ["", "reports", "summary.pdf"]
 ```
 
-`split` is a lossless lexical operation and does not validate its result. `simplify` only resolves already-trusted path components. Neither is a substitute for `parse` at an external-input boundary.
+`simplify` resolves dot segments in components already validated by `split`. Relative paths may retain leading `..` components because their meaning depends on the base against which they are resolved.
 
-`to_local_path` accepts either an encoded string, which it parses first, or components already returned by `parse`:
+`to_local_path` accepts either an encoded string, which it splits and simplifies first, or components already returned by `split`:
 
 ``` ruby
-components = Protocol::URL::Path.parse(untrusted_path)
+components = Protocol::URL::Path.split(untrusted_path)
 local_path = Protocol::URL::Path.to_local_path(components)
 ```
 
-Encoded separators remain inside their URL component during parsing. Filesystem conversion rejects an encoded separator when the local platform cannot represent it faithfully as one component.
+Encoded separators remain inside their URL component during splitting. Filesystem conversion rejects an encoded separator when the local platform cannot represent it faithfully as one component.
 
 ### Splitting and Joining Paths
 
@@ -126,7 +129,7 @@ Protocol::URL::Path.join(["a", "b", "c"])      # => "a/b/c"
 
 ### Simplifying Paths
 
-Remove dot segments (`.` and `..`) from trusted path components:
+Remove dot segments (`.` and `..`) from validated path components:
 
 ``` ruby
 # Simplify a path:
@@ -172,7 +175,7 @@ Protocol::URL::Path.expand("/a/b/file.html", "other.html", false)
 
 ### Converting to Local File System Paths
 
-Convert URL paths or parsed components to local file system paths:
+Convert URL paths or split components to local file system paths:
 
 ``` ruby
 # Convert URL path to local file system path:
@@ -285,9 +288,9 @@ messy.to_s  # => "https://example.com/a/c/d"
 
 When manipulating paths:
 - Use {ruby Protocol::URL::Path.expand} for combining paths
-- Use {ruby Protocol::URL::Path.parse} to validate untrusted, encoded URL paths
-- Use {ruby Protocol::URL::Path.simplify} to remove dot segments from trusted components
-- Pass parsed components directly to {ruby Protocol::URL::Path.to_local_path}
+- Use {ruby Protocol::URL::Path.split} to validate untrusted, encoded URL paths
+- Use {ruby Protocol::URL::Path.simplify} to remove dot segments from validated components
+- Pass split components directly to {ruby Protocol::URL::Path.to_local_path}
 - Remember that `expand` pops the last component by default (RFC 3986 behavior)
 
 ### Encoding

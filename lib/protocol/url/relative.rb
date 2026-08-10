@@ -34,7 +34,7 @@ module Protocol
 			
 			# Convert the URL path to a local filesystem path.
 			#
-			# The path is parsed and validated before conversion. Encoded separators
+			# The path is split, validated, and simplified before conversion. Encoded separators
 			# that cannot be represented as one local path component are rejected.
 			#
 			# @returns [String] The local filesystem path.
@@ -110,16 +110,15 @@ module Protocol
 				self.class.new(Path.expand(@path, path, pop), query, fragment)
 			end
 			
-			# Simplify the trusted path by resolving "." and ".." segments and removing duplicate slashes.
+			# Validate and simplify the path by resolving "." and ".." segments and removing duplicate slashes.
 			#
 			# This modifies the URL in-place by simplifying the path component:
 			# - Removes "." segments (current directory)
 			# - Resolves ".." segments (parent directory)
 			# - Collapses multiple consecutive slashes to single slashes (except at start)
 			#
-			# This method performs structural simplification only. It does not validate
-			# URI syntax, canonicalize percent escapes, or provide a security boundary.
-			# Use {Path.parse} for an untrusted, encoded URL path.
+			# {Path.split} validates URI syntax and canonicalizes percent escapes before
+			# {Path.simplify} resolves the resulting components.
 			#
 			# @returns [self] The normalized URL.
 			#

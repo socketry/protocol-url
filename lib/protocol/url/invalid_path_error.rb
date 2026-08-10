@@ -5,7 +5,7 @@
 
 module Protocol
 	module URL
-		# Raised when a URL path cannot be parsed or converted safely.
+		# Raised when a URL path cannot be split or converted safely.
 		class InvalidPathError < ArgumentError
 			# Initialize the invalid path error.
 			# @parameter path [String] The invalid URL path.
