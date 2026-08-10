@@ -4,11 +4,14 @@
 # Copyright, 2025, by Samuel Williams.
 
 require_relative "encoding"
+require_relative "invalid_path_error"
 
 module Protocol
 	module URL
 		# Represents a relative URL, which does not include a scheme or authority.
 		module Path
+			SEPARATOR = "/"
+			
 			# Split the given path into its components.
 			# 
 			# - `split("")` => `[]`
@@ -82,6 +85,71 @@ module Protocol
 				end
 				
 				return output
+			end
+			
+			# Normalize an encoded, absolute URL path.
+			#
+			# Repeated separators and dot segments are removed, unreserved percent
+			# escapes are decoded, and remaining escapes are canonicalized. Ambiguous
+			# separators and traversal above the root are rejected.
+			#
+			# @parameter path [String] The encoded, absolute URL path.
+			# @returns [String] The normalized URL path.
+			# @raises [InvalidPathError] If the path is malformed or unsafe.
+			def self.normalize(path)
+				unless path.start_with?(SEPARATOR)
+					raise InvalidPathError.new(path, "expected an absolute path")
+				end
+				
+				components = []
+				directory = false
+				parts = path.split(SEPARATOR, -1)
+				
+				parts.drop(1).each_with_index do |part, index|
+					component = normalize_component(path, part)
+					last = index == parts.size - 2
+					
+					if component.empty?
+						if last
+							directory = true
+						end
+						
+						next
+					end
+					
+					if component == "."
+						if last
+							directory = true
+						end
+						
+						next
+					end
+					
+					if component == ".."
+						if components.empty?
+							raise InvalidPathError.new(path, "cannot traverse above the root")
+						end
+						
+						components.pop
+						
+						if last
+							directory = true
+						end
+						
+						next
+					end
+					
+					components << component
+					directory = false
+				end
+				
+				normalized = SEPARATOR + components.join(SEPARATOR)
+				
+				if directory && normalized != SEPARATOR
+					normalized << SEPARATOR
+				end
+				
+				return normalized
 			end
 			
 			# @parameter pop [Boolean] whether to remove the last path component of the base path, to conform to URI merging behaviour, as defined by RFC2396.
@@ -189,6 +257,81 @@ module Protocol
 				
 				return File.join(*components)
 			end
+			
+			def self.normalize_component(path, component)
+				output = String.new.b
+				index = 0
+				
+				while index < component.bytesize
+					byte = component.getbyte(index)
+					
+					if byte == 0 || byte < 32 || byte == 127
+						raise InvalidPathError.new(path, "contains a control character")
+					end
+					
+					if byte == 92
+						raise InvalidPathError.new(path, "contains an ambiguous separator")
+					end
+					
+					if byte == 35 || byte == 63
+						raise InvalidPathError.new(path, "contains a query or fragment delimiter")
+					end
+					
+					if byte == 37
+						escape = component.byteslice(index + 1, 2)
+						
+						unless escape&.match?(/\A[0-9A-Fa-f]{2}\z/)
+							raise InvalidPathError.new(path, "contains a malformed percent escape")
+						end
+						
+						byte = escape.to_i(16)
+						
+						if byte == 0 || byte < 32 || byte == 127
+							raise InvalidPathError.new(path, "contains an encoded control character")
+						end
+						
+						if byte == 47 || byte == 92
+							raise InvalidPathError.new(path, "contains an encoded separator")
+						end
+						
+						if unreserved_byte?(byte)
+							output << byte
+						else
+							output << format("%%%02X", byte)
+						end
+						
+						index += 3
+						next
+					end
+					
+					output << byte
+					index += 1
+				end
+				
+				return output.force_encoding(component.encoding)
+			end
+			private_class_method :normalize_component
+			
+			def self.unreserved_byte?(byte)
+				if byte >= 65 && byte <= 90
+					return true
+				end
+				
+				if byte >= 97 && byte <= 122
+					return true
+				end
+				
+				if byte >= 48 && byte <= 57
+					return true
+				end
+				
+				if byte == 45 || byte == 46 || byte == 95 || byte == 126
+					return true
+				end
+				
+				return false
+			end
+			private_class_method :unreserved_byte?
 		end
 	end
 end

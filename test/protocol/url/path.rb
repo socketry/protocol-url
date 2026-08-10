@@ -136,6 +136,85 @@ describe Protocol::URL::Path do
 		end
 	end
 	
+	with ".normalize" do
+		it "normalizes separators and dot segments" do
+			expect(Protocol::URL::Path.normalize("/a//b/./c/../d")).to be == "/a/b/d"
+			expect(Protocol::URL::Path.normalize("/a/../b/")).to be == "/b/"
+		end
+		
+		it "prevents protocol-relative paths" do
+			expect(Protocol::URL::Path.normalize("//example.com/index")).to be == "/example.com/index"
+		end
+		
+		it "canonicalizes percent escapes without changing reserved characters" do
+			expect(Protocol::URL::Path.normalize("/a+b/%7euser/%3f")).to be == "/a+b/~user/%3F"
+		end
+		
+		it "normalizes encoded dot segments" do
+			expect(Protocol::URL::Path.normalize("/a/%2e%2e/b")).to be == "/b"
+		end
+		
+		it "does not decode percent escapes more than once" do
+			expect(Protocol::URL::Path.normalize("/%252e%252e/value")).to be == "/%252e%252e/value"
+		end
+		
+		it "rejects traversal above the root" do
+			expect do
+				Protocol::URL::Path.normalize("/../../etc/passwd")
+			end.to raise_exception(Protocol::URL::InvalidPathError)
+			
+			expect do
+				Protocol::URL::Path.normalize("/%2e%2e/etc/passwd")
+			end.to raise_exception(Protocol::URL::InvalidPathError)
+		end
+		
+		it "rejects relative paths" do
+			expect do
+				Protocol::URL::Path.normalize("relative/path")
+			end.to raise_exception(Protocol::URL::InvalidPathError)
+		end
+		
+		it "rejects malformed percent escapes" do
+			expect do
+				Protocol::URL::Path.normalize("/invalid%2")
+			end.to raise_exception(Protocol::URL::InvalidPathError)
+		end
+		
+		it "rejects query and fragment delimiters" do
+			expect do
+				Protocol::URL::Path.normalize("/search?query=test")
+			end.to raise_exception(Protocol::URL::InvalidPathError)
+			
+			expect do
+				Protocol::URL::Path.normalize("/document#section")
+			end.to raise_exception(Protocol::URL::InvalidPathError)
+		end
+		
+		it "rejects ambiguous separators" do
+			expect do
+				Protocol::URL::Path.normalize("/a%2fb")
+			end.to raise_exception(Protocol::URL::InvalidPathError)
+			
+			expect do
+				Protocol::URL::Path.normalize("/a%5cb")
+			end.to raise_exception(Protocol::URL::InvalidPathError)
+			
+			expect do
+				Protocol::URL::Path.normalize("/a\\b")
+			end.to raise_exception(Protocol::URL::InvalidPathError)
+		end
+		
+		it "rejects null bytes" do
+			expect do
+				Protocol::URL::Path.normalize("/a\0b")
+			end.to raise_exception(Protocol::URL::InvalidPathError)
+			
+			expect do
+				Protocol::URL::Path.normalize("/a%00b")
+			end.to raise_exception(Protocol::URL::InvalidPathError)
+		end
+	end
+	
 	with ".expand" do
 		with "empty relative path" do
 			it "returns base path unchanged" do

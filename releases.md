@@ -1,5 +1,9 @@
 # Releases
 
+## Unreleased
+
+  - Add strict normalization for encoded, absolute URL paths.
+
 ## v0.10.0
 
   - Rename `Protocol::URL::FormData::Parser::CONTENT_TYPE` to `MEDIA_TYPE`.
