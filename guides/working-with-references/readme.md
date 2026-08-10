@@ -12,12 +12,12 @@ You can create references in several ways:
 
 ### Parsing External URLs (Untrusted Data)
 
-Use {ruby Protocol::URL.parse} or {ruby Protocol::URL.[]} to parse URL strings from external sources (user input, APIs, web pages). These methods validate and decode the input:
+Use {ruby Protocol::URL.parse} or {ruby Protocol::URL.[]} to parse URL strings from external sources (user input, APIs, web pages). These methods reject whitespace and control characters, preserve the encoded path structure, and expose decoded path components:
 
 ``` ruby
 # Parse a reference with query and fragment:
 reference = Protocol::URL["/api/users?active=true&role=admin#list"]
-reference.path      # => "/api/users"
+reference.path.to_s # => "/api/users"
 reference.query     # => "active=true&role=admin"
 reference.fragment  # => "list"
 ```
@@ -50,13 +50,14 @@ reference.to_s  # => "/search?q=ruby&page=2"
 
 References use different encoding strategies depending on how they're constructed:
 
-### With parse() - Decodes Input
+### With parse() - Preserves Encoded Input and Decodes Components
 
-`parse()` expects already-encoded URLs and decodes them for internal storage:
+`parse()` expects already-encoded URLs. It returns a {ruby Protocol::URL::Path} which preserves component boundaries and exposes decoded components:
 
 ``` ruby
 ref = Protocol::URL::Reference.parse("path%20with%20spaces?foo=bar#frag%20ment")
-ref.path      # => "path with spaces" (decoded)
+ref.path.to_s       # => "path%20with%20spaces" (encoded URL path)
+ref.path.components # => ["path with spaces"] (decoded components)
 ref.fragment  # => "frag ment" (decoded)
 ref.to_s      # => "path%20with%20spaces?foo=bar#frag%20ment" (re-encoded)
 ```
@@ -67,7 +68,7 @@ ref.to_s      # => "path%20with%20spaces?foo=bar#frag%20ment" (re-encoded)
 
 ``` ruby
 ref = Protocol::URL::Reference.new("path with spaces", "foo=bar", "frag ment")
-ref.path      # => "path with spaces"
+ref.path.components # => ["path with spaces"]
 ref.fragment  # => "frag ment"
 ref.to_s      # => "path%20with%20spaces?foo=bar#frag%20ment"
 ```
@@ -99,7 +100,7 @@ References provide accessors for all URL components:
 reference = Protocol::URL["/api/v1/users?page=2&limit=50#results"]
 
 # Path component:
-reference.path      # => "/api/v1/users"
+reference.path.to_s # => "/api/v1/users"
 
 # Query string (unparsed):
 reference.query     # => "page=2&limit=50"
@@ -130,7 +131,7 @@ root = base.with(path: "/status")
 root.to_s  # => "/status"
 ```
 
-The path resolution follows RFC 3986 rules, using {ruby Protocol::URL::Path.expand} internally.
+The path resolution follows RFC 3986 rules, using {ruby Protocol::URL::Path#join} internally.
 
 ### Updating Query Parameters
 
@@ -278,7 +279,7 @@ result.to_s  # => "/search?q=ruby&lang=en#result-5"
 
 Choose the right method based on your data source:
 
-- **Use `parse()` or `[]`** for external/untrusted data (user input, URLs from web pages, API responses). These methods validate and decode the URL.
+- **Use `parse()` or `[]`** for external/untrusted data (user input, URLs from web pages, API responses). These methods reject whitespace and control characters while preserving encoded path boundaries.
 - **Use `new()`** for known good values from your code. This is more efficient since it skips validation and expects unencoded values.
 
 ``` ruby
