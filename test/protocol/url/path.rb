@@ -150,6 +150,15 @@ describe Protocol::URL::Path do
 			expect(Protocol::URL::Path.normalize("/a+b/%7euser/%3f")).to be == "/a+b/~user/%3F"
 		end
 		
+		it "accepts the RFC 3986 path character grammar" do
+			path = "/AZaz09-._~!$&'()*+,;=:@"
+			expect(Protocol::URL::Path.normalize(path)).to be == path
+		end
+		
+		it "preserves percent-encoded non-ASCII bytes" do
+			expect(Protocol::URL::Path.normalize("/caf%c3%a9")).to be == "/caf%C3%A9"
+		end
+		
 		it "normalizes encoded dot segments" do
 			expect(Protocol::URL::Path.normalize("/a/%2e%2e/b")).to be == "/b"
 		end
@@ -178,6 +187,22 @@ describe Protocol::URL::Path do
 			expect do
 				Protocol::URL::Path.normalize("/invalid%2")
 			end.to raise_exception(Protocol::URL::InvalidPathError)
+		end
+		
+		it "rejects characters outside the RFC 3986 path grammar" do
+			[" ", '"', "<", ">", "[", "]", "^", "`", "{", "|", "}"].each do |character|
+				expect do
+					Protocol::URL::Path.normalize("/invalid#{character}path")
+				end.to raise_exception(Protocol::URL::InvalidPathError)
+			end
+		end
+		
+		it "rejects raw non-ASCII bytes with a structured error" do
+			["/café", "/invalid\xFF".b.force_encoding(Encoding::UTF_8)].each do |path|
+				expect do
+					Protocol::URL::Path.normalize(path)
+				end.to raise_exception(Protocol::URL::InvalidPathError)
+			end
 		end
 		
 		it "rejects query and fragment delimiters" do

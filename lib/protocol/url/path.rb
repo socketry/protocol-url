@@ -91,19 +91,27 @@ module Protocol
 			#
 			# Repeated separators and dot segments are removed, unreserved percent
 			# escapes are decoded, and remaining escapes are canonicalized. Ambiguous
-			# separators and traversal above the root are rejected.
+			# separators and traversal above the root are rejected. Literal characters
+			# must match the ASCII path grammar from RFC 3986; all other octets must be
+			# percent-encoded.
 			#
 			# @parameter path [String] The encoded, absolute URL path.
 			# @returns [String] The normalized URL path.
 			# @raises [InvalidPathError] If the path is malformed or unsafe.
 			def self.normalize(path)
-				unless path.start_with?(SEPARATOR)
+				unless path.encoding.ascii_compatible?
+					raise InvalidPathError.new(path, "expected an ASCII-compatible encoding")
+				end
+				
+				encoded_path = path.b
+				
+				unless encoded_path.getbyte(0) == 47
 					raise InvalidPathError.new(path, "expected an absolute path")
 				end
 				
 				components = []
 				directory = false
-				parts = path.split(SEPARATOR, -1)
+				parts = encoded_path.split(SEPARATOR, -1)
 				
 				parts.drop(1).each_with_index do |part, index|
 					component = normalize_component(path, part)
@@ -143,13 +151,13 @@ module Protocol
 					directory = false
 				end
 				
-				normalized = SEPARATOR + components.join(SEPARATOR)
+				normalized = SEPARATOR.b + components.join(SEPARATOR)
 				
 				if directory && normalized != SEPARATOR
 					normalized << SEPARATOR
 				end
 				
-				return normalized
+				return normalized.force_encoding(path.encoding)
 			end
 			
 			# @parameter pop [Boolean] whether to remove the last path component of the base path, to conform to URI merging behaviour, as defined by RFC2396.
@@ -278,13 +286,14 @@ module Protocol
 					end
 					
 					if byte == 37
-						escape = component.byteslice(index + 1, 2)
+						high = hexadecimal_value(component.getbyte(index + 1))
+						low = hexadecimal_value(component.getbyte(index + 2))
 						
-						unless escape&.match?(/\A[0-9A-Fa-f]{2}\z/)
+						unless high && low
 							raise InvalidPathError.new(path, "contains a malformed percent escape")
 						end
 						
-						byte = escape.to_i(16)
+						byte = (high << 4) | low
 						
 						if byte == 0 || byte < 32 || byte == 127
 							raise InvalidPathError.new(path, "contains an encoded control character")
@@ -304,13 +313,44 @@ module Protocol
 						next
 					end
 					
+					unless path_character_byte?(byte)
+						raise InvalidPathError.new(path, "contains a character outside the URI path grammar")
+					end
+					
 					output << byte
 					index += 1
 				end
 				
-				return output.force_encoding(component.encoding)
+				return output
 			end
 			private_class_method :normalize_component
+			
+			def self.hexadecimal_value(byte)
+				if byte && byte >= 48 && byte <= 57
+					return byte - 48
+				end
+				
+				if byte && byte >= 65 && byte <= 70
+					return byte - 55
+				end
+				
+				if byte && byte >= 97 && byte <= 102
+					return byte - 87
+				end
+			end
+			private_class_method :hexadecimal_value
+			
+			# RFC 3986 `pchar`: unreserved / sub-delims / ":" / "@".
+			def self.path_character_byte?(byte)
+				return true if unreserved_byte?(byte)
+				return true if byte == 33 || byte == 36 || byte == 38 || byte == 39
+				return true if byte >= 40 && byte <= 43
+				return true if byte == 44 || byte == 59 || byte == 61
+				return true if byte == 58 || byte == 64
+				
+				return false
+			end
+			private_class_method :path_character_byte?
 			
 			def self.unreserved_byte?(byte)
 				if byte >= 65 && byte <= 90
