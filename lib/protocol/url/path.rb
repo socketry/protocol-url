@@ -49,7 +49,11 @@ module Protocol
 				return components.join("/")
 			end
 			
-			# Simplify the given path components by resolving "." and "..".
+			# Simplify trusted path components by resolving "." and "..".
+			#
+			# This is a structural operation for paths that are already trusted. It does
+			# not validate URI syntax, decode percent escapes, or reject traversal above
+			# an absolute root. Use {.normalize} for an untrusted, encoded URL path.
 			#
 			# @parameter components [Array(String)] The path components to simplify.
 			# @returns [Array(String)] The simplified path components.
@@ -87,13 +91,18 @@ module Protocol
 				return output
 			end
 			
-			# Normalize an encoded, absolute URL path.
+			# Normalize an untrusted, encoded, absolute URL path.
 			#
 			# Repeated separators and dot segments are removed, unreserved percent
 			# escapes are decoded, and remaining escapes are canonicalized. Ambiguous
 			# separators and traversal above the root are rejected. Literal characters
 			# must match the ASCII path grammar from RFC 3986; all other octets must be
 			# percent-encoded.
+			#
+			# This is the validation boundary for external URL paths. The result is safe
+			# for subsequent structural operations such as {.split} and {.simplify}.
+			# Filesystem conversion remains a separate operation; pass the normalized
+			# result to {.to_local_path} when one is required.
 			#
 			# @parameter path [String] The encoded, absolute URL path.
 			# @returns [String] The normalized URL path.
@@ -234,17 +243,22 @@ module Protocol
 				return join(relative_components)
 			end
 			
-			# Convert a URL path to a local file system path using the platform's file separator.
+			# Convert a trusted URL path to a local file system path using the platform's file separator.
 			#
 			# This method splits the URL path on `/` characters, unescapes each component using
 			# {Encoding.unescape_path} (which preserves encoded separators), then joins the
 			# components using `File.join`.
 			#
+			# This method performs conversion, not validation. Untrusted external input
+			# must first be passed through {.normalize}:
+			#
+			# 	local_path = Path.to_local_path(Path.normalize(untrusted_path))
+			#
 			# Percent-encoded path separators (`%2F` for `/` and `%5C` for `\`) are NOT decoded,
 			# preventing them from being interpreted as directory boundaries. This ensures that
 			# URL path components map directly to file system path components.
 			#
-			# @parameter path [String] The URL path to convert (should be percent-encoded).
+			# @parameter path [String] The trusted, percent-encoded URL path to convert.
 			# @returns [String] The local file system path.
 			#
 			# @example Generating local paths.

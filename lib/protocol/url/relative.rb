@@ -34,6 +34,9 @@ module Protocol
 			
 			# Convert the URL path to a local filesystem path.
 			#
+			# This method does not validate the path. If the URL was constructed from
+			# untrusted input, normalize its path with {Path.normalize} first.
+			#
 			# @returns [String] The local filesystem path.
 			def to_local_path
 				Path.to_local_path(@path)
@@ -107,12 +110,16 @@ module Protocol
 				self.class.new(Path.expand(@path, path, pop), query, fragment)
 			end
 			
-			# Normalize the path by resolving "." and ".." segments and removing duplicate slashes.
+			# Simplify the trusted path by resolving "." and ".." segments and removing duplicate slashes.
 			#
 			# This modifies the URL in-place by simplifying the path component:
 			# - Removes "." segments (current directory)
 			# - Resolves ".." segments (parent directory)
 			# - Collapses multiple consecutive slashes to single slashes (except at start)
+			#
+			# This method performs structural simplification only. It does not validate
+			# URI syntax, canonicalize percent escapes, or provide a security boundary.
+			# Use {Path.normalize} for an untrusted, encoded, absolute URL path.
 			#
 			# @returns [self] The normalized URL.
 			#

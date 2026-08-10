@@ -90,6 +90,25 @@ result.to_s  # => "https://example.com/completely/different/path"
 
 The {ruby Protocol::URL::Path} module provides powerful utilities for working with URL paths:
 
+### Trust Boundaries
+
+Use {ruby Protocol::URL::Path.normalize} as the validation boundary for an untrusted, encoded, absolute URL path. After normalization, structural helpers such as `split`, `join`, and `simplify` can operate on the trusted result:
+
+``` ruby
+untrusted_path = "/documents/%2e%2e/reports/summary.pdf"
+normalized_path = Protocol::URL::Path.normalize(untrusted_path)
+# => "/reports/summary.pdf"
+```
+
+`simplify` only resolves path components. It does not validate URI syntax, decode percent escapes, or reject traversal above an absolute root, so it is not a substitute for `normalize` at an external-input boundary.
+
+`to_local_path` also performs conversion rather than validation. Normalize untrusted input before converting it for filesystem use:
+
+``` ruby
+normalized_path = Protocol::URL::Path.normalize(untrusted_path)
+local_path = Protocol::URL::Path.to_local_path(normalized_path)
+```
+
 ### Splitting and Joining Paths
 
 ``` ruby
@@ -105,7 +124,7 @@ Protocol::URL::Path.join(["a", "b", "c"])      # => "a/b/c"
 
 ### Simplifying Paths
 
-Remove dot segments (`.` and `..`) from paths:
+Remove dot segments (`.` and `..`) from trusted path components:
 
 ``` ruby
 # Simplify a path:
@@ -151,7 +170,7 @@ Protocol::URL::Path.expand("/a/b/file.html", "other.html", false)
 
 ### Converting to Local File System Paths
 
-Convert URL paths to local file system paths safely:
+Convert trusted URL paths to local file system paths. For external input, call `normalize` first as shown above:
 
 ``` ruby
 # Convert URL path to local file system path:
@@ -267,7 +286,9 @@ messy.to_s  # => "https://example.com/a/c/d"
 
 When manipulating paths:
 - Use {ruby Protocol::URL::Path.expand} for combining paths
-- Use {ruby Protocol::URL::Path.simplify} to remove dot segments
+- Use {ruby Protocol::URL::Path.normalize} to validate untrusted, encoded, absolute URL paths
+- Use {ruby Protocol::URL::Path.simplify} to remove dot segments from trusted components
+- Normalize untrusted paths before passing them to {ruby Protocol::URL::Path.to_local_path}
 - Remember that `expand` pops the last component by default (RFC 3986 behavior)
 
 ### Encoding
