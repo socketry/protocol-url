@@ -14,16 +14,16 @@ module Protocol
 			
 			# Initialize a new relative URL.
 			#
-			# @parameter path [String] The path component.
+			# @parameter path [String | Path] The encoded path component.
 			# @parameter query [String, nil] The query string.
 			# @parameter fragment [String, nil] The fragment identifier.
 			def initialize(path, query = nil, fragment = nil)
-				@path = path.to_s
+				@path = Path[path]
 				@query = query
 				@fragment = fragment
 			end
 			
-			# @attribute [String] The path component of the URL.
+			# @attribute [Path] The path component of the URL.
 			attr :path
 			
 			# @attribute [String, nil] The query string component.
@@ -35,9 +35,11 @@ module Protocol
 			# Convert the URL path to a local filesystem path.
 			#
 			# @returns [String] The local filesystem path.
-			def to_local_path
-				Path.to_local_path(@path)
+			def local_path
+				@path.local_path
 			end
+			
+			alias to_local_path local_path
 			
 			# @returns [Boolean] If there is a query string.
 			def query?
@@ -58,13 +60,13 @@ module Protocol
 			# 	base = Relative.new("/documents/reports/")
 			# 	other = Relative.new("invoices/2024.pdf")
 			# 	result = base + other
-			# 	result.path  # => "/documents/reports/invoices/2024.pdf"
+			# 	result.path.to_s  # => "/documents/reports/invoices/2024.pdf"
 			#
 			# @example Navigate to parent directory.
 			# 	base = Relative.new("/documents/reports/archive/")
 			# 	other = Relative.new("../../summary.pdf")
 			# 	result = base + other
-			# 	result.path  # => "/documents/summary.pdf"
+			# 	result.path.to_s  # => "/documents/summary.pdf"
 			def +(other)
 				case other
 				when Absolute
@@ -74,7 +76,7 @@ module Protocol
 				when Relative
 					# Relative + Relative: merge paths directly
 					self.class.new(
-						Path.expand(self.path, other.path, true),
+						@path.join(other.path),
 						other.query,
 						other.fragment
 					)
@@ -104,7 +106,9 @@ module Protocol
 			# 	updated = url.with(path: "report.pdf", pop: false)
 			# 	updated.to_s  # => "/documents/report.pdf"
 			def with(path: nil, query: @query, fragment: @fragment, pop: true)
-				self.class.new(Path.expand(@path, path, pop), query, fragment)
+				path = @path.join(path, pop: pop) unless path.nil?
+				
+				self.class.new(path || @path, query, fragment)
 			end
 			
 			# Normalize the path by resolving "." and ".." segments and removing duplicate slashes.
@@ -119,11 +123,9 @@ module Protocol
 			# @example Basic normalization
 			#   url = Relative.new("/foo//bar/./baz/../qux")
 			#   url.normalize!
-			#   url.path  # => "/foo/bar/qux"
+			#   url.path.to_s  # => "/foo/bar/qux"
 			def normalize!
-				components = Path.split(@path)
-				normalized = Path.simplify(components)
-				@path = Path.join(normalized)
+				@path = @path.simplify
 				
 				return self
 			end
@@ -131,7 +133,7 @@ module Protocol
 			# Append the relative URL to the given buffer.
 			# The path, query, and fragment are expected to already be properly encoded.
 			def append(buffer = String.new)
-				buffer << @path
+				buffer << @path.encoded
 				
 				if @query and !@query.empty?
 					buffer << "?" << @query
@@ -217,6 +219,7 @@ module Protocol
 			def inspect
 				"#<#{self.class} #{to_s}>"
 			end
+			
 		end
 	end
 end

@@ -14,7 +14,7 @@ module Protocol
 			#
 			# @parameter scheme [String] The URL scheme (e.g., "https", "http").
 			# @parameter authority [String] The authority component (e.g., "example.com", "user@host:port").
-			# @parameter path [String] The path component (defaults to "/").
+			# @parameter path [String | Path] The encoded path component (defaults to "/").
 			# @parameter query [String, nil] The query string.
 			# @parameter fragment [String, nil] The fragment identifier.
 			def initialize(scheme, authority, path = "/", query = nil, fragment = nil)
@@ -97,7 +97,7 @@ module Protocol
 					end
 				else
 					# Relative path: merge with base path:
-					path = Path.expand(@path, other.path)
+					path = @path.join(other.path)
 					Absolute.new(@scheme, @authority, path, other.query, other.fragment)
 				end
 			end
@@ -129,7 +129,9 @@ module Protocol
 			# 	updated = url.with(query: "query=python")
 			# 	updated.to_s  # => "https://example.com/search?query=python"
 			def with(scheme: @scheme, authority: @authority, path: nil, query: @query, fragment: @fragment, pop: true)
-				self.class.new(scheme, authority, Path.expand(@path, path, pop), query, fragment)
+				path = @path.join(path, pop: pop) unless path.nil?
+				
+				self.class.new(scheme, authority, path || @path, query, fragment)
 			end
 			
 			# Convert the URL to an array representation.

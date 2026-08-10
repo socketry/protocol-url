@@ -6,393 +6,169 @@
 require "protocol/url/path"
 
 describe Protocol::URL::Path do
-	with ".split" do
-		it "splits empty path" do
-			expect(Protocol::URL::Path.split("")).to be == []
+	with ".[]" do
+		it "returns an existing path" do
+			path = Protocol::URL::Path["/a/b"]
+			
+			expect(Protocol::URL::Path[path]).to be_equal(path)
 		end
 		
-		it "splits root path" do
-			expect(Protocol::URL::Path.split("/")).to be == ["", ""]
+		it "interprets strings as encoded paths" do
+			path = Protocol::URL::Path["/a/b%2Fc"]
+			
+			expect(path.components).to be == ["", "a", "b/c"]
 		end
 		
-		it "splits absolute path" do
-			expect(Protocol::URL::Path.split("/a/b/c")).to be == ["", "a", "b", "c"]
-		end
-		
-		it "splits relative path" do
-			expect(Protocol::URL::Path.split("a/b/c")).to be == ["a", "b", "c"]
-		end
-		
-		it "splits path with trailing slash" do
-			expect(Protocol::URL::Path.split("a/b/c/")).to be == ["a", "b", "c", ""]
-		end
-		
-		it "splits absolute path with trailing slash" do
-			expect(Protocol::URL::Path.split("/a/b/c/")).to be == ["", "a", "b", "c", ""]
-		end
-		
-		it "splits path with multiple slashes" do
-			expect(Protocol::URL::Path.split("a//b///c")).to be == ["a", "", "b", "", "", "c"]
+		it "interprets arrays as decoded components" do
+			path = Protocol::URL::Path[["", "a", "b/c"]]
+			
+			expect(path.encoded).to be == "/a/b%2Fc"
 		end
 	end
 	
-	with ".join" do
-		it "joins empty array" do
-			expect(Protocol::URL::Path.join([])).to be == ""
+	with "value semantics" do
+		it "exposes the encoded representation" do
+			path = Protocol::URL::Path[["", "a", "b/c"]]
+			
+			expect(path.encoded).to be == "/a/b%2Fc"
+			expect(path.to_s).to be == path.encoded
 		end
 		
-		it "joins root components" do
-			expect(Protocol::URL::Path.join(["", ""])).to be == "/"
+		it "compares decoded components" do
+			expect(Protocol::URL::Path["/a/%62"]).to be == Protocol::URL::Path["/a/b"]
+			expect(Protocol::URL::Path["/a/%62"].hash).to be == Protocol::URL::Path["/a/b"].hash
 		end
 		
-		it "joins absolute path components" do
-			expect(Protocol::URL::Path.join(["", "a", "b", "c"])).to be == "/a/b/c"
-		end
-		
-		it "joins relative path components" do
-			expect(Protocol::URL::Path.join(["a", "b", "c"])).to be == "a/b/c"
-		end
-		
-		it "joins path with trailing slash" do
-			expect(Protocol::URL::Path.join(["a", "b", "c", ""])).to be == "a/b/c/"
+		it "preserves encoded separator boundaries" do
+			encoded_separator = Protocol::URL::Path["/a/b%2Fc"]
+			structural_separator = Protocol::URL::Path["/a/b/c"]
+			
+			expect(encoded_separator.components).to be == ["", "a", "b/c"]
+			expect(encoded_separator).not.to be == structural_separator
 		end
 	end
 	
-	with ".simplify" do
-		it "simplifies empty path" do
-			expect(Protocol::URL::Path.simplify([])).to be == []
+	with "path properties" do
+		it "distinguishes absolute and relative paths" do
+			expect(Protocol::URL::Path["/a"]).to be(:absolute?)
+			expect(Protocol::URL::Path["a"]).to be(:relative?)
 		end
 		
-		it "simplifies root path" do
-			expect(Protocol::URL::Path.simplify(["", ""])).to be == ["", ""]
+		it "identifies directories and basenames" do
+			path = Protocol::URL::Path["/a/b/"]
+			
+			expect(path).to be(:directory?)
+			expect(path.basename).to be == ""
 		end
 		
-		it "preserves simple absolute path" do
-			expect(Protocol::URL::Path.simplify(["", "a", "b", "c"])).to be == ["", "a", "b", "c"]
-		end
-		
-		it "preserves simple relative path" do
-			expect(Protocol::URL::Path.simplify(["a", "b", "c"])).to be == ["a", "b", "c"]
-		end
-		
-		it "removes current directory at start" do
-			expect(Protocol::URL::Path.simplify([".", "a", "b"])).to be == ["a", "b"]
-		end
-		
-		it "removes current directory in middle" do
-			expect(Protocol::URL::Path.simplify(["a", ".", "b"])).to be == ["a", "b"]
-		end
-		
-		it "adds trailing slash for trailing dot" do
-			expect(Protocol::URL::Path.simplify(["a", "b", "."])).to be == ["a", "b", ""]
-		end
-		
-		it "removes multiple slashes" do
-			expect(Protocol::URL::Path.simplify(["a", "", "b", "", "", "c"])).to be == ["a", "b", "c"]
-		end
-		
-		it "preserves trailing empty component" do
-			expect(Protocol::URL::Path.simplify(["a", "b", ""])).to be == ["a", "b", ""]
-		end
-		
-		it "resolves parent directory" do
-			expect(Protocol::URL::Path.simplify(["a", "b", "..", "c"])).to be == ["a", "c"]
-		end
-		
-		it "resolves multiple parent directories" do
-			expect(Protocol::URL::Path.simplify(["a", "b", "c", "..", "..", "d"])).to be == ["a", "d"]
-		end
-		
-		it "adds trailing slash for trailing parent directory" do
-			expect(Protocol::URL::Path.simplify(["a", "b", ".."])).to be == ["a", ""]
-		end
-		
-		it "resolves parent at absolute root" do
-			expect(Protocol::URL::Path.simplify(["", "a", ".."])).to be == ["", ""]
-		end
-		
-		it "cannot go above absolute root" do
-			expect(Protocol::URL::Path.simplify(["", "..", "a"])).to be == ["", "a"]
-		end
-		
-		it "preserves parent directory at relative root" do
-			expect(Protocol::URL::Path.simplify(["..", "a"])).to be == ["..", "a"]
-		end
-		
-		it "preserves multiple parent directories at relative root" do
-			expect(Protocol::URL::Path.simplify(["..", "..", "a"])).to be == ["..", "..", "a"]
-		end
-		
-		it "cannot remove parent directory markers" do
-			expect(Protocol::URL::Path.simplify(["a", "..", "..", "b"])).to be == ["..", "b"]
-		end
-		
-		it "handles complex path" do
-			expect(Protocol::URL::Path.simplify(["", "a", "b", ".", "c", "..", "d", "", "e"])).to be == ["", "a", "b", "d", "e"]
-		end
-		
-		it "resolves all dots and double dots" do
-			expect(Protocol::URL::Path.simplify([".", "a", ".", "b", "..", "c", ".", "d", ".."])).to be == ["a", "c", ""]
+		it "returns a parent path" do
+			path = Protocol::URL::Path["/a/b"]
+			
+			expect(path.parent).to be == Protocol::URL::Path["/a"]
 		end
 	end
 	
-	with ".expand" do
-		with "empty relative path" do
-			it "returns base path unchanged" do
-				expect(Protocol::URL::Path.expand("/foo/bar", "")).to be == "/foo/bar"
-			end
-			
-			it "returns relative base path unchanged" do
-				expect(Protocol::URL::Path.expand("foo/bar", "")).to be == "foo/bar"
-			end
-		end
-		
-		with "absolute relative path" do
-			it "replaces base with absolute path" do
-				expect(Protocol::URL::Path.expand("/base/path", "/new/path")).to be == "/new/path"
-			end
-			
-			it "replaces relative base with absolute path" do
-				expect(Protocol::URL::Path.expand("base/path", "/new/path")).to be == "/new/path"
-			end
-		end
-		
-		with "simple relative paths" do
-			it "appends to absolute base (pops last component by default)" do
-				expect(Protocol::URL::Path.expand("/base", "file")).to be == "/file"
-			end
-			
-			it "appends to relative base (pops last component by default)" do
-				expect(Protocol::URL::Path.expand("base", "file")).to be == "file"
-			end
-			
-			it "appends multiple components (pops last component by default)" do
-				expect(Protocol::URL::Path.expand("/base", "a/b/c")).to be == "/a/b/c"
+	with "#simplify" do
+		{
+			"simplifies an empty path" => [[], []],
+			"preserves the root path" => [["", ""], ["", ""]],
+			"preserves a simple absolute path" => [["", "a", "b", "c"], ["", "a", "b", "c"]],
+			"preserves a simple relative path" => [["a", "b", "c"], ["a", "b", "c"]],
+			"removes a leading current directory" => [[".", "a", "b"], ["a", "b"]],
+			"removes an intermediate current directory" => [["a", ".", "b"], ["a", "b"]],
+			"preserves a trailing directory marker" => [["a", "b", "."], ["a", "b", ""]],
+			"collapses repeated separators" => [["a", "", "b", "", "", "c"], ["a", "b", "c"]],
+			"preserves a trailing separator" => [["a", "b", ""], ["a", "b", ""]],
+			"resolves a parent directory" => [["a", "b", "..", "c"], ["a", "c"]],
+			"resolves multiple parent directories" => [["a", "b", "c", "..", "..", "d"], ["a", "d"]],
+			"preserves a trailing directory after a parent" => [["a", "b", ".."], ["a", ""]],
+			"resolves a parent at the absolute root" => [["", "a", ".."], ["", ""]],
+			"cannot traverse above the absolute root" => [["", "..", "a"], ["", "a"]],
+			"preserves a parent at the relative root" => [["..", "a"], ["..", "a"]],
+			"preserves multiple parents at the relative root" => [["..", "..", "a"], ["..", "..", "a"]],
+			"retains unresolved parent markers" => [["a", "..", "..", "b"], ["..", "b"]],
+			"handles a complex path" => [["", "a", "b", ".", "c", "..", "d", "", "e"], ["", "a", "b", "d", "e"]],
+			"resolves all dot segments" => [[".", "a", ".", "b", "..", "c", ".", "d", ".."], ["a", "c", ""]],
+		}.each do |description, (components, expected)|
+			it description do
+				path = Protocol::URL::Path[components]
+				
+				expect(path.simplify.components).to be == expected
 			end
 		end
 		
-		with "pop parameter" do
-			it "pops last component when pop=true (default)" do
-				expect(Protocol::URL::Path.expand("/a/b/c", "d")).to be == "/a/b/d"
-			end
+		it "does not modify the original path" do
+			path = Protocol::URL::Path[["a", ".", "b", "..", "c"]]
 			
-			it "does not pop when pop=false" do
-				expect(Protocol::URL::Path.expand("/a/b/c", "d", false)).to be == "/a/b/c/d"
-			end
-			
-			it "pops last component for relative base" do
-				expect(Protocol::URL::Path.expand("a/b/c", "d")).to be == "a/b/d"
-			end
-			
-			it "does not pop parent directory marker" do
-				expect(Protocol::URL::Path.expand("/a/..", "c")).to be == "/c"
-			end
+			expect(path.simplify.components).to be == ["a", "c"]
+			expect(path.components).to be == ["a", ".", "b", "..", "c"]
 		end
 		
-		with "dot segments in relative path" do
-			it "resolves current directory" do
-				expect(Protocol::URL::Path.expand("/a/b", "./c")).to be == "/a/c"
-			end
+		it "returns self when already canonical" do
+			path = Protocol::URL::Path[["", "a", "b", ""]]
 			
-			it "resolves parent directory" do
-				expect(Protocol::URL::Path.expand("/a/b/c", "../d")).to be == "/a/d"
-			end
+			expect(path.simplify).to be_equal(path)
+		end
+	end
+	
+	with "#simplify!" do
+		it "modifies and returns the path" do
+			path = Protocol::URL::Path[["a", ".", "b", "..", "c"]]
 			
-			it "resolves multiple parent directories" do
-				expect(Protocol::URL::Path.expand("/a/b/c/d", "../../e")).to be == "/a/e"
-			end
-			
-			it "resolves trailing dot" do
-				expect(Protocol::URL::Path.expand("/a/b", ".")).to be == "/a/"
-			end
-			
-			it "resolves trailing parent directory" do
-				expect(Protocol::URL::Path.expand("/a/b/c", "..")).to be == "/a/"
-			end
+			expect(path.simplify!).to be_equal(path)
+			expect(path.components).to be == ["a", "c"]
 		end
 		
-		with "trailing slashes" do
-			it "preserves trailing slash from base" do
-				expect(Protocol::URL::Path.expand("/a/b/", "c")).to be == "/a/b/c"
-			end
+		it "returns nil when the path is already canonical" do
+			path = Protocol::URL::Path[["a", "b"]]
 			
-			it "preserves trailing slash from relative" do
-				expect(Protocol::URL::Path.expand("/a/b", "c/")).to be == "/a/c/"
-			end
-			
-			it "adds trailing slash for relative ending with dot" do
-				expect(Protocol::URL::Path.expand("/a/b", "c/.")).to be == "/a/c/"
-			end
-			
-			it "adds trailing slash for relative ending with parent" do
-				expect(Protocol::URL::Path.expand("/a/b/c", "d/..")).to be == "/a/b/"
-			end
+			expect(path.simplify!).to be_nil
 		end
 		
-		with "RFC 3986 examples" do
-			let(:base) {"/a/b/c/d;p"}
+		it "preserves relative parent components" do
+			path = Protocol::URL::Path[["a", "..", "..", "b"]]
 			
-			it "resolves 'g'" do
-				expect(Protocol::URL::Path.expand(base, "g")).to be == "/a/b/c/g"
-			end
-			
-			it "resolves './g'" do
-				expect(Protocol::URL::Path.expand(base, "./g")).to be == "/a/b/c/g"
-			end
-			
-			it "resolves 'g/'" do
-				expect(Protocol::URL::Path.expand(base, "g/")).to be == "/a/b/c/g/"
-			end
-			
-			it "resolves '/g'" do
-				expect(Protocol::URL::Path.expand(base, "/g")).to be == "/g"
-			end
-			
-			it "resolves 'g?y'" do
-				expect(Protocol::URL::Path.expand(base, "g?y")).to be == "/a/b/c/g?y"
-			end
-			
-			it "resolves '#s'" do
-				expect(Protocol::URL::Path.expand(base, "#s")).to be == "/a/b/c/#s"
-			end
-			
-			it "resolves 'g#s'" do
-				expect(Protocol::URL::Path.expand(base, "g#s")).to be == "/a/b/c/g#s"
-			end
-			
-			it "resolves 'g?y#s'" do
-				expect(Protocol::URL::Path.expand(base, "g?y#s")).to be == "/a/b/c/g?y#s"
-			end
-			
-			it "resolves ';x'" do
-				expect(Protocol::URL::Path.expand(base, ";x")).to be == "/a/b/c/;x"
-			end
-			
-			it "resolves 'g;x'" do
-				expect(Protocol::URL::Path.expand(base, "g;x")).to be == "/a/b/c/g;x"
-			end
-			
-			it "resolves 'g;x?y#s'" do
-				expect(Protocol::URL::Path.expand(base, "g;x?y#s")).to be == "/a/b/c/g;x?y#s"
-			end
-			
-			it "resolves ''" do
-				expect(Protocol::URL::Path.expand(base, "")).to be == "/a/b/c/d;p"
-			end
-			
-			it "resolves '.'" do
-				expect(Protocol::URL::Path.expand(base, ".")).to be == "/a/b/c/"
-			end
-			
-			it "resolves './'" do
-				expect(Protocol::URL::Path.expand(base, "./")).to be == "/a/b/c/"
-			end
-			
-			it "resolves '..'" do
-				expect(Protocol::URL::Path.expand(base, "..")).to be == "/a/b/"
-			end
-			
-			it "resolves '../'" do
-				expect(Protocol::URL::Path.expand(base, "../")).to be == "/a/b/"
-			end
-			
-			it "resolves '../g'" do
-				expect(Protocol::URL::Path.expand(base, "../g")).to be == "/a/b/g"
-			end
-			
-			it "resolves '../..'" do
-				expect(Protocol::URL::Path.expand(base, "../..")).to be == "/a/"
-			end
-			
-			it "resolves '../../'" do
-				expect(Protocol::URL::Path.expand(base, "../../")).to be == "/a/"
-			end
-			
-			it "resolves '../../g'" do
-				expect(Protocol::URL::Path.expand(base, "../../g")).to be == "/a/g"
-			end
+			path.simplify!
+			expect(path.components).to be == ["..", "b"]
 		end
 		
-		with "abnormal RFC 3986 examples" do
-			let(:base) {"/a/b/c/d;p"}
+		it "preserves the absolute root and trailing separator" do
+			path = Protocol::URL::Path[["", "..", "a", "", "b", "..", ""]]
 			
-			it "resolves '../../../g'" do
-				expect(Protocol::URL::Path.expand(base, "../../../g")).to be == "/g"
-			end
+			path.simplify!
+			expect(path.components).to be == ["", "a", ""]
+		end
+	end
+	
+	with "#join" do
+		it "returns the base for an empty relative path" do
+			base = Protocol::URL::Path["/foo/bar"]
 			
-			it "resolves '../../../../g'" do
-				expect(Protocol::URL::Path.expand(base, "../../../../g")).to be == "/g"
-			end
-			
-			it "resolves '/./g'" do
-				expect(Protocol::URL::Path.expand(base, "/./g")).to be == "/g"
-			end
-			
-			it "resolves '/../g'" do
-				expect(Protocol::URL::Path.expand(base, "/../g")).to be == "/g"
-			end
-			
-			it "resolves 'g.'" do
-				expect(Protocol::URL::Path.expand(base, "g.")).to be == "/a/b/c/g."
-			end
-			
-			it "resolves '.g'" do
-				expect(Protocol::URL::Path.expand(base, ".g")).to be == "/a/b/c/.g"
-			end
-			
-			it "resolves 'g..'" do
-				expect(Protocol::URL::Path.expand(base, "g..")).to be == "/a/b/c/g.."
-			end
-			
-			it "resolves '..g'" do
-				expect(Protocol::URL::Path.expand(base, "..g")).to be == "/a/b/c/..g"
-			end
-			
-			it "resolves './../g'" do
-				expect(Protocol::URL::Path.expand(base, "./../g")).to be == "/a/b/g"
-			end
-			
-			it "resolves './g/.'" do
-				expect(Protocol::URL::Path.expand(base, "./g/.")).to be == "/a/b/c/g/"
-			end
-			
-			it "resolves 'g/./h'" do
-				expect(Protocol::URL::Path.expand(base, "g/./h")).to be == "/a/b/c/g/h"
-			end
-			
-			it "resolves 'g/../h'" do
-				expect(Protocol::URL::Path.expand(base, "g/../h")).to be == "/a/b/c/h"
-			end
-			
-			it "resolves 'g;x=1/./y'" do
-				expect(Protocol::URL::Path.expand(base, "g;x=1/./y")).to be == "/a/b/c/g;x=1/y"
-			end
-			
-			it "resolves 'g;x=1/../y'" do
-				expect(Protocol::URL::Path.expand(base, "g;x=1/../y")).to be == "/a/b/c/y"
-			end
+			expect(base.join("")).to be_equal(base)
 		end
 		
-		with "edge cases" do
-			it "handles empty base path" do
-				expect(Protocol::URL::Path.expand("", "foo")).to be == "foo"
-			end
+		it "replaces the base with an absolute path" do
+			result = Protocol::URL::Path["/base/path"].join("/new/path")
 			
-			it "handles root base path" do
-				expect(Protocol::URL::Path.expand("/", "foo")).to be == "/foo"
-			end
+			expect(result).to be == Protocol::URL::Path["/new/path"]
+		end
+		
+		it "resolves and simplifies a relative path" do
+			result = Protocol::URL::Path["/a/b/c"].join("../d")
 			
-			it "handles multiple slashes in relative" do
-				expect(Protocol::URL::Path.expand("/a/b", "c//d")).to be == "/a/c/d"
-			end
+			expect(result).to be == Protocol::URL::Path["/a/d"]
+		end
+		
+		it "can preserve the final base component" do
+			result = Protocol::URL::Path["/a/b/c"].join("d", pop: false)
 			
-			it "handles multiple slashes in base" do
-				expect(Protocol::URL::Path.expand("/a//b", "c")).to be == "/a/c"
-			end
+			expect(result).to be == Protocol::URL::Path["/a/b/c/d"]
+		end
+		
+		it "preserves encoded separator boundaries" do
+			result = Protocol::URL::Path["/a/b%2Fc"].join("../d")
 			
-			it "resolves complex mix of dots and paths" do
-				expect(Protocol::URL::Path.expand("/a/b/c", "./../d/./e/../f")).to be == "/a/d/f"
-			end
+			expect(result).to be == Protocol::URL::Path["/d"]
 		end
 	end
 	
@@ -430,73 +206,82 @@ describe Protocol::URL::Path do
 		end
 	end
 	
-	with ".to_local_path" do
+	with "#local_path" do
 		it "converts simple absolute path" do
-			result = Protocol::URL::Path.to_local_path("/documents/report.pdf")
+			result = Protocol::URL::Path["/documents/report.pdf"].local_path
 			expect(result).to be == "/documents/report.pdf"
 		end
 		
 		it "converts simple relative path" do
-			result = Protocol::URL::Path.to_local_path("documents/report.pdf")
+			result = Protocol::URL::Path["documents/report.pdf"].local_path
 			expect(result).to be == "documents/report.pdf"
 		end
 		
 		it "unescapes percent-encoded characters" do
-			result = Protocol::URL::Path.to_local_path("/files/My%20Document.txt")
+			result = Protocol::URL::Path["/files/My%20Document.txt"].local_path
 			expect(result).to be == "/files/My Document.txt"
 		end
 		
 		it "unescapes unicode characters" do
-			result = Protocol::URL::Path.to_local_path("/files/%E2%9D%A4%EF%B8%8F.txt")
+			result = Protocol::URL::Path["/files/%E2%9D%A4%EF%B8%8F.txt"].local_path
 			expect(result).to be == "/files/❤️.txt"
 		end
 		
 		it "preserves empty path" do
-			result = Protocol::URL::Path.to_local_path("")
+			result = Protocol::URL::Path[""].local_path
 			expect(result).to be == ""
 		end
 		
 		it "converts root path" do
-			result = Protocol::URL::Path.to_local_path("/")
+			result = Protocol::URL::Path["/"].local_path
 			expect(result).to be == "/"
 		end
 		
 		it "handles path with trailing slash" do
-			result = Protocol::URL::Path.to_local_path("/documents/folder/")
+			result = Protocol::URL::Path["/documents/folder/"].local_path
 			expect(result).to be == "/documents/folder/"
 		end
 		
+		it "preserves parent components for the caller to resolve" do
+			result = Protocol::URL::Path["/documents/../private.txt"].local_path
+			
+			expect(result).to be == "/documents/../private.txt"
+		end
+		
 		with "security: encoded path separators" do
-			it "preserves %2F (encoded forward slash)" do
-				# %2F is the encoded form of /
-				# Preserving it prevents creating additional path components
-				result = Protocol::URL::Path.to_local_path("/folder/safe%2Fname/file.txt")
-				expect(result).to be == "/folder/safe%2Fname/file.txt"
+			it "rejects %2F within a component" do
+				expect do
+					Protocol::URL::Path["/folder/safe%2Fname/file.txt"].local_path
+				end.to raise_exception(ArgumentError, message: be =~ /invalid characters/)
 			end
 			
-			it "preserves %5C (encoded backslash)" do
-				# %5C is the encoded form of \
-				# Preserving it prevents creating path separators on Windows
-				result = Protocol::URL::Path.to_local_path("/folder/name%5Cfile.txt")
-				expect(result).to be == "/folder/name%5Cfile.txt"
+			it "handles %5C according to the platform" do
+				if File::ALT_SEPARATOR
+					expect do
+						Protocol::URL::Path["/folder/name%5Cfile.txt"].local_path
+					end.to raise_exception(ArgumentError, message: be =~ /invalid characters/)
+				else
+					result = Protocol::URL::Path["/folder/name%5Cfile.txt"].local_path
+					expect(result).to be == "/folder/name\\file.txt"
+				end
 			end
 			
-			it "preserves multiple encoded separators" do
-				# Multiple %2F should all be preserved
-				result = Protocol::URL::Path.to_local_path("/a%2Fb%2Fc/d.txt")
-				expect(result).to be == "/a%2Fb%2Fc/d.txt"
+			it "rejects multiple encoded separators" do
+				expect do
+					Protocol::URL::Path["/a%2Fb%2Fc/d.txt"].local_path
+				end.to raise_exception(ArgumentError, message: be =~ /invalid characters/)
 			end
 			
-			it "preserves encoded separators while decoding other characters" do
-				# %20 (space) should be decoded, %2F should be preserved
-				result = Protocol::URL::Path.to_local_path("/folder/My%20File%2Fname.txt")
-				expect(result).to be == "/folder/My File%2Fname.txt"
+			it "rejects encoded separators after decoding other characters" do
+				expect do
+					Protocol::URL::Path["/folder/My%20File%2Fname.txt"].local_path
+				end.to raise_exception(ArgumentError, message: be =~ /invalid characters/)
 			end
 			
 			it "allows encoded dots (not path traversal when literal)" do
 				# %2E is the encoded form of .
 				# Two of them (%2E%2E) as literal characters are fine - they're not ".."
-				result = Protocol::URL::Path.to_local_path("/folder/%2E%2E/file.txt")
+				result = Protocol::URL::Path["/folder/%2E%2E/file.txt"].local_path
 				expect(result).to be == "/folder/../file.txt"
 			end
 		end
@@ -504,17 +289,17 @@ describe Protocol::URL::Path do
 		with "edge cases" do
 			it "handles multiple consecutive slashes" do
 				# Multiple slashes create empty components, File.join collapses them
-				result = Protocol::URL::Path.to_local_path("/a//b///c")
+				result = Protocol::URL::Path["/a//b///c"].local_path
 				expect(result).to be == "/a/b/c"
 			end
 			
 			it "handles special characters in filenames" do
-				result = Protocol::URL::Path.to_local_path("/files/name%21%40%23.txt")
+				result = Protocol::URL::Path["/files/name%21%40%23.txt"].local_path
 				expect(result).to be == "/files/name!@#.txt"
 			end
 			
 			it "handles mixed encoded and unencoded" do
-				result = Protocol::URL::Path.to_local_path("/files/My%20Documents/file.txt")
+				result = Protocol::URL::Path["/files/My%20Documents/file.txt"].local_path
 				expect(result).to be == "/files/My Documents/file.txt"
 			end
 		end

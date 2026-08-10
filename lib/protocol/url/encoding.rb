@@ -43,54 +43,8 @@ module Protocol
 				end.force_encoding(encoding)
 			end
 			
-			# Unescapes a percent encoded path component, preserving encoded path separators.
-			#
-			# This method unescapes percent-encoded characters except for path separators
-			# (forward slash `/` and backslash `\`). This prevents encoded separators like
-			# `%2F` or `%5C` from being decoded into actual path separators, which could
-			# allow bypassing path component boundaries.
-			#
-			# @parameter string [String] The path component to unescape.
-			# @returns [String] The unescaped string with separators still encoded.
-			#
-			# @example
-			#   Encoding.unescape_path("hello%20world")     # => "hello world"
-			#   Encoding.unescape_path("safe%2Fname")       # => "safe%2Fname" (%2F not decoded)
-			#   Encoding.unescape_path("name%5Cfile")       # => "name%5Cfile" (%5C not decoded)
-			def self.unescape_path(string, encoding = string.encoding)
-				string.b.gsub(/%(\h\h)/) do |hex|
-					byte = Integer($1, 16)
-					char = byte.chr
-					
-					# Don't decode forward slash (0x2F) or backslash (0x5C)
-					if byte == 0x2F || byte == 0x5C
-						hex  # Keep as %2F or %5C
-					else
-						char
-					end
-				end.force_encoding(encoding)
-			end
-			
-			# Matches characters that are not allowed in a URI path segment. According to RFC 3986 Section 3.3 (https://tools.ietf.org/html/rfc3986#section-3.3), a valid path segment consists of "pchar" characters. This pattern identifies characters that must be percent-encoded when included in a URI path segment.
-			NON_PATH_CHARACTER_PATTERN = /([^a-zA-Z0-9_\-\.~!$&'()*+,;=:@\/]+)/.freeze
-			
 			# Matches characters that are not allowed in a URI fragment. According to RFC 3986 Section 3.5, a valid fragment consists of pchar / "/" / "?" characters.
 			NON_FRAGMENT_CHARACTER_PATTERN = /([^a-zA-Z0-9_\-\.~!$&'()*+,;=:@\/\?]+)/.freeze
-			
-			# Escapes non-path characters using percent encoding. In other words, this method escapes characters that are not allowed in a URI path segment. According to RFC 3986 Section 3.3 (https://tools.ietf.org/html/rfc3986#section-3.3), a valid path segment consists of "pchar" characters. This method percent-encodes characters that are not "pchar" characters.
-			#
-			# @parameter path [String] The path to escape.
-			# @returns [String] The escaped path.
-			#
-			# @example Escape spaces while preserving path separators.
-			# 	Encoding.escape_path("/documents/my reports/summary.pdf")
-			# 	# => "/documents/my%20reports/summary.pdf"
-			def self.escape_path(path)
-				encoding = path.encoding
-				path.b.gsub(NON_PATH_CHARACTER_PATTERN) do |m|
-					"%" + m.unpack("H2" * m.bytesize).join("%").upcase
-				end.force_encoding(encoding)
-			end
 			
 			# Escapes non-fragment characters using percent encoding. According to RFC 3986 Section 3.5, fragments can contain pchar / "/" / "?" characters.
 			#

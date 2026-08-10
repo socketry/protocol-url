@@ -21,8 +21,8 @@ module Protocol
 			#
 			# This method provides flexible conversion from various types into a {Reference}.
 			# When given a {String}, it parses the URL-encoded path, query, and fragment components
-			# and unescapes them for internal storage. When given a {Relative}, it converts the
-			# encoded values to unescaped form suitable for {Reference} instances.
+			# and preserves the path as a {Path}. When given a {Relative}, it preserves the
+			# existing path and its component boundaries.
 			#
 			# @parameter value [String | Relative | Nil] The value to coerce.
 			# @parameter parameters [Hash | Nil] Optional user-supplied parameters to append to the query string.
@@ -34,7 +34,7 @@ module Protocol
 			#
 			# @example Coerce a string with path, query, and fragment.
 			# 	reference = Reference["/search?q=ruby#results"]
-			# 	reference.path      # => "/search"
+			# 	reference.path.to_s # => "/search"
 			# 	reference.query     # => "q=ruby"
 			# 	reference.fragment  # => "results"
 			#
@@ -45,7 +45,7 @@ module Protocol
 			# @example Coerce a Relative instance.
 			# 	relative = Relative.new("/path%20with%20spaces", nil, "top")
 			# 	reference = Reference[relative]
-			# 	reference.path  # => "/path with spaces"
+			# 	reference.path.components  # => ["", "path with spaces"]
 			def self.[](value, parameters = nil)
 				case value
 				when String
@@ -54,9 +54,8 @@ module Protocol
 						query = match[:query]
 						fragment = match[:fragment]
 						
-						# Unescape path and fragment for user-friendly internal storage:
-						# Query strings are kept as-is since they contain = and & syntax
-						path = Encoding.unescape(path) if path && !path.empty?
+						# Paths retain their encoded structure while exposing decoded components.
+						path = Path[path]
 						fragment = Encoding.unescape(fragment) if fragment
 						
 						self.new(path, query, fragment, parameters)
@@ -64,11 +63,9 @@ module Protocol
 						raise ArgumentError, "Invalid URL (contains whitespace or control characters): #{value.inspect}"
 					end
 				when Relative
-					# Relative stores encoded values, so we need to unescape them for Reference:
+					# Relative stores an encoded path; preserve its component boundaries.
 					path = value.path
 					fragment = value.fragment
-					
-					path = Encoding.unescape(path) if path && !path.empty?
 					fragment = Encoding.unescape(fragment) if fragment
 					
 					self.new(path, value.query, fragment, parameters)
@@ -77,11 +74,13 @@ module Protocol
 				else
 					raise ArgumentError, "Cannot coerce #{value.inspect} to Reference!"
 				end
-			end			# Generate a reference from a path and user parameters. The path may contain a `#fragment` or `?query=parameters`.
+			end
+			
+			# Generate a reference from a path and user parameters. The path may contain a `#fragment` or `?query=parameters`.
 			#
 			# @example Parse a path with query and fragment.
 			# 	reference = Reference.parse("/search?query=ruby#results")
-			# 	reference.path      # => "/search"
+			# 	reference.path.to_s # => "/search"
 			# 	reference.query     # => "query=ruby"
 			# 	reference.fragment  # => "results"
 			def self.parse(value = "/", parameters = nil)
@@ -90,7 +89,7 @@ module Protocol
 			
 			# Initialize the reference with raw, unescaped values.
 			#
-			# @parameter path [String] The unescaped path.
+			# @parameter path [String | Path] An unescaped path string, or an existing path.
 			# @parameter query [String | Nil] An already-formatted query string.
 			# @parameter fragment [String | Nil] The unescaped fragment.
 			# @parameter parameters [Hash | Nil] User supplied parameters that will be safely encoded.
@@ -99,6 +98,12 @@ module Protocol
 			# 	reference = Reference.new("/search", nil, nil, {"query" => "ruby", "limit" => "10"})
 			# 	reference.to_s  # => "/search?query=ruby&limit=10"
 			def initialize(path = "/", query = nil, fragment = nil, parameters = nil)
+				unless path.is_a?(Path)
+					# `new` accepts a decoded path string. Literal slashes in this legacy
+					# representation are structural separators.
+					path = Path[path.to_s.split("/", -1)]
+				end
+				
 				super(path, query, fragment)
 				@parameters = parameters
 			end
@@ -161,10 +166,10 @@ module Protocol
 			end
 			
 			# Append the reference to the given buffer.
-			# Encodes the path and fragment which are stored unescaped internally.
+			# Encodes the fragment; the path already retains its encoded structure.
 			# Query strings are passed through as-is (they contain = and & which are valid syntax).
 			def append(buffer = String.new)
-				buffer << Encoding.escape_path(@path)
+				buffer << @path.encoded
 				
 				if @query and !@query.empty?
 					buffer << "?" << @query
@@ -185,7 +190,7 @@ module Protocol
 				other = self.class[other]
 				
 				self.class.new(
-					Path.expand(self.path, other.path, true),
+					@path.join(other.path),
 					other.query,
 					other.fragment,
 					other.parameters,
@@ -199,7 +204,7 @@ module Protocol
 			
 			# Update the reference with the given path, query, fragment, and parameters.
 			#
-			# @parameter path [String] Append the string to this reference similar to `File.join`.
+			# @parameter path [String | Path] Append the path to this reference similar to `File.join`.
 			# @parameter query [String | Nil] Replace the query string. Defaults to keeping the existing query if not specified.
 			# @parameter fragment [String | Nil] Replace the fragment. Defaults to keeping the existing fragment if not specified.
 			# @parameter parameters [Hash | false] Parameters to merge or replace. Pass `false` (default) to keep existing parameters.
@@ -251,7 +256,15 @@ module Protocol
 					end
 				end
 				
-				path = Path.expand(@path, path, pop)
+				if path.nil?
+					path = @path
+				else
+					unless path.is_a?(Path)
+						path = Path[path.to_s.split("/", -1)]
+					end
+					
+					path = @path.join(path, pop: pop)
+				end
 				
 				self.class.new(path, query, fragment, parameters)
 			end

@@ -31,46 +31,6 @@ describe Protocol::URL::Encoding do
 		end
 	end
 	
-	describe ".unescape_path" do
-		it "unescapes percent-encoded strings" do
-			expect(Protocol::URL::Encoding.unescape_path("hello%20world%21")).to be == "hello world!"
-		end
-		
-		it "handles unicode characters" do
-			expect(Protocol::URL::Encoding.unescape_path("caf%C3%A9")).to be == "café"
-		end
-		
-		it "preserves encoded forward slashes" do
-			expect(Protocol::URL::Encoding.unescape_path("safe%2Fname")).to be == "safe%2Fname"
-		end
-		
-		it "preserves encoded backslashes" do
-			expect(Protocol::URL::Encoding.unescape_path("name%5Cfile")).to be == "name%5Cfile"
-		end
-		
-		it "preserves encoded separators while unescaping other characters" do
-			expect(Protocol::URL::Encoding.unescape_path("My%20File%2Fname")).to be == "My File%2Fname"
-			expect(Protocol::URL::Encoding.unescape_path("folder%5Cname%20with%20spaces")).to be == "folder%5Cname with spaces"
-		end
-		
-		it "handles mixed case encoding for separators" do
-			expect(Protocol::URL::Encoding.unescape_path("file%2fname")).to be == "file%2fname"
-			expect(Protocol::URL::Encoding.unescape_path("file%2Fname")).to be == "file%2Fname"
-			expect(Protocol::URL::Encoding.unescape_path("file%5cname")).to be == "file%5cname"
-			expect(Protocol::URL::Encoding.unescape_path("file%5Cname")).to be == "file%5Cname"
-		end
-	end
-	
-	describe ".escape_path" do
-		it "escapes path with spaces" do
-			expect(Protocol::URL::Encoding.escape_path("/path/with spaces/file.html")).to be == "/path/with%20spaces/file.html"
-		end
-		
-		it "preserves path separators" do
-			expect(Protocol::URL::Encoding.escape_path("/foo/bar")).to be == "/foo/bar"
-		end
-	end
-	
 	describe ".encode" do
 		it "encodes simple parameters" do
 			expect(Protocol::URL::Encoding.encode({"foo" => "bar"})).to be == "foo=bar"

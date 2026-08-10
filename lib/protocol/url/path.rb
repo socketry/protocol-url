@@ -7,116 +7,28 @@ require_relative "encoding"
 
 module Protocol
 	module URL
-		# Represents a relative URL, which does not include a scheme or authority.
-		module Path
-			# Split the given path into its components.
-			# 
-			# - `split("")` => `[]`
-			# - `split("/")` => `["", ""]`
-			# - `split("/a/b/c")` => `["", "a", "b", "c"]`
-			# - `split("a/b/c/")` => `["a", "b", "c", ""]`
-			#
-			# @parameter path [String] The path to split.
-			# @returns [Array(String)] The path components.
-			#
-			# @example Split an absolute path.
-			# 	Path.split("/documents/report.pdf")
-			# 	# => ["", "documents", "report.pdf"]
-			#
-			# @example Split a relative path.
-			# 	Path.split("images/logo.png")
-			# 	# => ["images", "logo.png"]
-			def self.split(path)
-				return path.split("/", -1)
-			end
+		# Represents a URL path without losing the boundary between URL path components.
+		#
+		# String input is interpreted as an encoded URL path. Array input is interpreted as
+		# decoded components. A literal `/` in an encoded string is structural, while `%2F`
+		# decodes to data within a single component.
+		class Path
+			include Comparable
 			
-			# Join the given path components into a single path.
-			#
-			# @parameter components [Array(String)] The path components to join.
-			# @returns [String] The joined path.
-			#
-			# @example Join absolute path components.
-			# 	Path.join(["", "documents", "report.pdf"])
-			# 	# => "/documents/report.pdf"
-			#
-			# @example Join relative path components.
-			# 	Path.join(["images", "logo.png"])
-			# 	# => "images/logo.png"
-			def self.join(components)
-				return components.join("/")
-			end
+			# The path separator.
+			SEPARATOR = "/"
+			EMPTY_COMPONENTS = [].freeze
+			INVALID_COMPONENT_PATTERN = /([^a-zA-Z0-9_\-\.~!$&'()*+,;=:@]+)/.freeze
+			private_constant :EMPTY_COMPONENTS, :INVALID_COMPONENT_PATTERN
 			
-			# Simplify the given path components by resolving "." and "..".
-			#
-			# @parameter components [Array(String)] The path components to simplify.
-			# @returns [Array(String)] The simplified path components.
-			#
-			# @example Resolve parent directory references.
-			# 	Path.simplify(["documents", "reports", "..", "invoices", "2024.pdf"])
-			# 	# => ["documents", "invoices", "2024.pdf"]
-			#
-			# @example Remove current directory references.
-			# 	Path.simplify(["documents", ".", "report.pdf"])
-			# 	# => ["documents", "report.pdf"]
-			def self.simplify(components)
-				output = []
-				
-				components.each_with_index do |component, index|
-					if index == 0 && component == ""
-						# Preserve leading slash:
-						output << ""
-					elsif component == "."
-						# Handle current directory - trailing . means directory, preserve trailing slash:
-						output << "" if index == components.size - 1
-					elsif component == "" && index != components.size - 1
-						# Ignore empty segments (multiple slashes) except at end - no-op.
-					elsif component == ".." && output.last && output.last != ".."
-						# Handle parent directory: go up one level if not at root:
-						output.pop if output.last != ""
-						# Trailing .. means directory, preserve trailing slash:
-						output << "" if index == components.size - 1
-					else
-						# Regular path component:
-						output << component
-					end
-				end
-				
-				return output
-			end
-			
-			# @parameter pop [Boolean] whether to remove the last path component of the base path, to conform to URI merging behaviour, as defined by RFC2396.
-			#
-			# @example Expand a relative path against a base path.
-			# 	Path.expand("/documents/reports/", "invoices/2024.pdf")
-			# 	# => "/documents/reports/invoices/2024.pdf"
-			#
-			# @example Navigate to parent directory.
-			# 	Path.expand("/documents/reports/2024/", "../summary.pdf")
-			# 	# => "/documents/reports/summary.pdf"
-			def self.expand(base, relative, pop = true)
-				# Empty relative path means no change:
-				return base if relative.nil? || relative.empty?
-				
-				components = split(base)
-				
-				# RFC2396 Section 5.2:
-				# 6) a) All but the last segment of the base URI's path component is
-				# copied to the buffer.  In other words, any characters after the
-				# last (right-most) slash character, if any, are excluded.
-				if pop and components.last != ".."
-					components.pop
-				elsif components.last == ""
-					components.pop
-				end
-				
-				relative = relative.split("/", -1)
-				if relative.first == ""
-					components = relative
+			def self.[](path)
+				if path.is_a?(self)
+					return path
+				elsif path.is_a?(Array)
+					return self.new(nil, path)
 				else
-					components.concat(relative)
+					return self.new(path.to_s)
 				end
-				
-				return join(simplify(components))
 			end
 			
 			# Calculate the relative path from one absolute path to another.
@@ -136,8 +48,182 @@ module Protocol
 			# 	Path.relative("/docs/guide.html", "/docs/index.html")
 			# 	# => "guide.html"
 			def self.relative(target, from)
-				target_components = split(target)
-				from_components = split(from)
+				return Path[target].relative(from).to_s
+			end
+			
+			def initialize(encoded, components = nil)
+				@encoded = encoded
+				
+				unless components&.frozen?
+					# Only dup if we need to:
+					components = components.dup.freeze
+				end
+				
+				@components = components
+			end
+			
+			def absolute?
+				if @encoded
+					return @encoded.start_with?(SEPARATOR)
+				end
+				
+				if @components
+					return @components.first == ""
+				end
+				
+				return false
+			end
+			
+			def relative?
+				!absolute?
+			end
+			
+			def directory?
+				if @encoded
+					return @encoded.end_with?(SEPARATOR)
+				end
+				
+				if @components
+					return @components.last == ""	
+				end
+				
+				return true
+			end
+			
+			def basename
+				self.components.last
+			end
+			
+			def parent
+				components = self.components.dup
+				
+				components.pop
+				
+				return self.class.new(nil, components.freeze)
+			end
+			
+			def components
+				@components ||= @encoded.split(SEPARATOR, -1).map! do |component|
+					Encoding.unescape(component)
+				end.freeze
+			end
+			
+			def encoded
+				@encoded ||= @components.map{|component|
+					component.b.gsub(INVALID_COMPONENT_PATTERN) do |match|
+						"%" + match.unpack("H2" * match.bytesize).join("%").upcase
+					end.force_encoding(component.encoding)
+				}.join(SEPARATOR).freeze
+			end
+			
+			def empty?
+				components.empty?
+			end
+			
+			# Paths compare by their decoded components, not by their encoded spelling.
+			# Component boundaries remain significant, so `%2F` within a component is
+			# distinct from a literal `/` separating two components.
+			def <=>(other)
+				return nil unless other.is_a?(Path)
+				
+				components <=> other.components
+			end
+			
+			def ==(other)
+				other.is_a?(Path) && components == other.components
+			end
+			
+			alias eql? ==
+			
+			def hash
+				components.hash
+			end
+			
+			FILESYSTEM_ENCODING = ::Encoding.find("filesystem")
+			FILESYSTEM_INVALID_PATTERN = Regexp.union(["\0", File::SEPARATOR, File::ALT_SEPARATOR].compact)
+			private_constant :FILESYSTEM_ENCODING, :FILESYSTEM_INVALID_PATTERN
+			
+			# Convert a URL path to a local file system path.
+			#
+			# Each decoded URL component must map to exactly one local path component. Components
+			# containing NUL or a platform path separator cannot be represented and are rejected.
+			#
+			# @parameter encoding [Encoding] The target file system encoding.
+			# @returns [String] The local file system path.
+			#
+			# This conversion does not simplify `.` or `..` components or establish containment
+			# beneath an application root. Simplify and apply the application's containment
+			# policy before using a path from an untrusted source.
+			def local_path(encoding: FILESYSTEM_ENCODING)
+				components = self.components.map do |component|
+					unless component.valid_encoding?
+						raise ArgumentError, "Path has invalid encoding!"
+					end
+					
+					if FILESYSTEM_INVALID_PATTERN.match?(component)
+						raise ArgumentError, "Path contains invalid characters!"
+					end
+					
+					component.encode(encoding)
+				end
+				
+				return File.join(*components)
+			rescue ::Encoding::InvalidByteSequenceError, ::Encoding::UndefinedConversionError
+				raise ArgumentError, "Path could not be converted to a local path!"
+			end
+			
+			alias to_s encoded
+			alias to_str encoded
+			
+			def simplify!
+				simplified = simplify
+				return nil if simplified.equal?(self)
+				
+				@encoded = simplified.encoded
+				@components = simplified.components
+				
+				return self
+			end
+			
+			def simplify
+				components = simplify_components
+				return self unless components
+				
+				return self.class.new(nil, components)
+			end
+			
+			def join(other, pop: true, simplify: true)
+				other = Path[other]
+				return self if other.empty?
+				
+				if other.absolute?
+					return simplify ? other.simplify : other
+				end
+				
+				components = self.components.dup
+				
+				# RFC2396 Section 5.2:
+				# 6) a) All but the last segment of the base URI's path component is
+				# copied to the buffer.  In other words, any characters after the
+				# last (right-most) slash character, if any, are excluded.
+				if pop and components.last != ".."
+					components.pop
+				elsif components.last == ""
+					components.pop
+				end
+				
+				components.concat(other.components)
+				
+				if simplify
+					simplify_components!(components)
+				end
+				
+				return Path.new(nil, components)
+			end
+			
+			def relative(from)
+				target_components = self.components
+				from_components = Path[from].components
 				
 				# Remove the last component from 'from' to get the directory
 				from_components = from_components[0...-1] if from_components.size > 0
@@ -155,39 +241,92 @@ module Protocol
 				# Build the relative path components
 				relative_components = [".."] * up_levels + target_components[common_length..-1]
 				
-				return join(relative_components)
+				return Path.new(nil, relative_components)
 			end
 			
-			# Convert a URL path to a local file system path using the platform's file separator.
-			#
-			# This method splits the URL path on `/` characters, unescapes each component using
-			# {Encoding.unescape_path} (which preserves encoded separators), then joins the
-			# components using `File.join`.
-			#
-			# Percent-encoded path separators (`%2F` for `/` and `%5C` for `\`) are NOT decoded,
-			# preventing them from being interpreted as directory boundaries. This ensures that
-			# URL path components map directly to file system path components.
-			#
-			# @parameter path [String] The URL path to convert (should be percent-encoded).
-			# @returns [String] The local file system path.
-			#
-			# @example Generating local paths.
-			# 	Path.to_local_path("/documents/report.pdf")  # => "/documents/report.pdf"
-			# 	Path.to_local_path("/files/My%20Document.txt")  # => "/files/My Document.txt"
-			#
-			# @example Preserves encoded separators.
-			# 	Path.to_local_path("/folder/safe%2Fname/file.txt")
-			# 	# => "/folder/safe%2Fname/file.txt"
-			# 	# %2F is NOT decoded to prevent creating additional path components
-			def self.to_local_path(path)
-				components = split(path)
+			private
+			
+			# Find the first component which requires simplification.
+			def simplification_index(components)
+				absolute = components.first == ""
+				regular_component = false
+				last_index = components.size - 1
 				
-				# Unescape each component, preserving encoded path separators
-				components.map! do |component|
-					Encoding.unescape_path(component)
+				components.each_with_index do |component, index|
+					if component == "."
+						return index
+					elsif component == ""
+						# Leading and trailing empty components are significant.
+						return index if index > 0 && index < last_index
+					elsif component == ".."
+						# Absolute paths cannot retain parent components. Relative paths
+						# can retain them only before the first regular component.
+						return index if absolute || regular_component
+					else
+						regular_component = true
+					end
 				end
 				
-				return File.join(*components)
+				return nil
+			end
+			
+			# Return simplified components, or nil if they are already canonical.
+			def simplify_components
+				components = self.components
+				return nil unless start_index = simplification_index(components)
+				
+				components = components.dup
+				simplify_components!(components, start_index)
+				
+				return components
+			end
+			
+			# Simplify the given components in place.
+			def simplify_components!(components, start_index = nil)
+				start_index ||= simplification_index(components)
+				return nil unless start_index
+				
+				offset = start_index
+				index = start_index
+				last_index = components.size - 1
+				
+				while index <= last_index
+					component = components[index]
+					
+					if index == 0 && component == ""
+						# Preserve the absolute-path root.
+						components[offset] = component if offset < index
+						offset += 1
+					elsif component == "."
+						# A trailing dot denotes a directory.
+						if index == last_index
+							components[offset] = ""
+							offset += 1
+						end
+					elsif component == "" && index != last_index
+						# Collapse repeated separators.
+					elsif component == ".." && offset > 0 && components[offset - 1] != ".."
+						# Pop a component, but never pop the absolute-path root.
+						offset -= 1 if components[offset - 1] != ""
+						
+						# A trailing parent reference also denotes a directory.
+						if index == last_index
+							components[offset] = ""
+							offset += 1
+						end
+					else
+						components[offset] = component if offset < index
+						offset += 1
+					end
+					
+					index += 1
+				end
+				
+				if offset < components.size
+					components[offset, components.size - offset] = EMPTY_COMPONENTS
+				end
+				
+				return components
 			end
 		end
 	end

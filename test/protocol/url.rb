@@ -12,7 +12,7 @@ describe Protocol::URL do
 			expect(url).to be_a(Protocol::URL::Absolute)
 			expect(url.scheme).to be == "https"
 			expect(url.authority).to be == "cdn.example.com"
-			expect(url.path).to be == "/npm/"
+			expect(url.path).to be == Protocol::URL::Path["/npm/"]
 		end
 		
 		it "coerces protocol-relative URLs" do
@@ -20,13 +20,13 @@ describe Protocol::URL do
 			expect(url).to be_a(Protocol::URL::Absolute)
 			expect(url.scheme).to be == nil
 			expect(url.authority).to be == "cdn.example.com"
-			expect(url.path).to be == "/npm/"
+			expect(url.path).to be == Protocol::URL::Path["/npm/"]
 		end
 		
 		it "coerces relative paths" do
 			url = Protocol::URL["/_components/"]
 			expect(url).to be_a(Protocol::URL::Relative)
-			expect(url.path).to be == "/_components/"
+			expect(url.path).to be == Protocol::URL::Path["/_components/"]
 		end
 		
 		it "returns nil for nil input" do
