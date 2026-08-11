@@ -1,3 +1,7 @@
 async-http:
   url: https://github.com/socketry/async-http.git
   command: bundle exec sus
+async-rest:
+  url: https://github.com/socketry/async-rest.git
+  branch: structured-url-paths
+  command: bundle exec sus
