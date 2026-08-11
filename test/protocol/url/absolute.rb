@@ -22,6 +22,21 @@ describe Protocol::URL::Absolute do
 		expect(result.to_s).to be == "https://cdn.example.com/npm/lit@2.7.5/index.js"
 	end
 	
+	with "#freeze" do
+		it "freezes the scheme and authority" do
+			scheme = +"https"
+			authority = +"example.com"
+			url = Protocol::URL::Absolute.new(scheme, authority, "/")
+			
+			expect(url.freeze).to be_equal(url)
+			expect(url).to be(:frozen?)
+			expect(scheme).to be(:frozen?)
+			expect(authority).to be(:frozen?)
+			expect(url.path).to be(:frozen?)
+			expect(url.freeze).to be_equal(url)
+		end
+	end
+	
 	describe "fragment handling" do
 		it "preserves encoded fragments" do
 			url = Protocol::URL["http://example.com/path#hello%20world"]

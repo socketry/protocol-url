@@ -27,6 +27,26 @@ describe Protocol::URL::Relative do
 		expect(result.to_s).to be == "baz/file.txt"
 	end
 	
+	with "#freeze" do
+		it "freezes the URL and its direct components" do
+			path = Protocol::URL::Path["/a/../b"]
+			query = +"q=test"
+			fragment = +"section"
+			url = Protocol::URL::Relative.new(path, query, fragment)
+			
+			expect(url.freeze).to be_equal(url)
+			expect(url).to be(:frozen?)
+			expect(path).to be(:frozen?)
+			expect(query).to be(:frozen?)
+			expect(fragment).to be(:frozen?)
+			expect(url.freeze).to be_equal(url)
+			
+			expect do
+				path.simplify!
+			end.to raise_exception(FrozenError)
+		end
+	end
+	
 	with "#+" do
 		it "returns Absolute when adding Absolute to Relative" do
 			relative = Protocol::URL::Relative.new("/path")

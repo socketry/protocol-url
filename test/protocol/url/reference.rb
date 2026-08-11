@@ -54,9 +54,11 @@ describe Protocol::URL::Reference do
 	end
 	
 	with "#freeze" do
-		it "can freeze reference" do
+		it "freezes the reference and its direct components" do
 			expect(reference.freeze).to be_equal(reference)
 			expect(reference).to be(:frozen?)
+			expect(reference.path).to be(:frozen?)
+			expect(reference.parameters).to be(:frozen?)
 		end
 	end
 	

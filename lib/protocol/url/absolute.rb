@@ -25,6 +25,17 @@ module Protocol
 				super(path, query, fragment)
 			end
 			
+			# Freeze the URL and its direct components.
+			# @returns [Absolute] The frozen URL.
+			def freeze
+				return self if frozen?
+				
+				@scheme.freeze
+				@authority.freeze
+				
+				return super
+			end
+			
 			# @attribute [String] The URL scheme.
 			attr :scheme
 			

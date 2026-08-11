@@ -23,6 +23,18 @@ module Protocol
 				@fragment = fragment
 			end
 			
+			# Freeze the URL and its direct components.
+			# @returns [Relative] The frozen URL.
+			def freeze
+				return self if frozen?
+				
+				@path.freeze
+				@query.freeze
+				@fragment.freeze
+				
+				return super
+			end
+			
 			# @attribute [Path] The path component of the URL.
 			attr :path
 			
