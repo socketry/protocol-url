@@ -97,20 +97,28 @@ g%3Bx # An encoded semicolon that remains segment data.
 
 ## Filesystem conversion
 
-Retain filesystem conversion as an instance operation with an explicit system
-encoding policy:
+Retain filesystem conversion as an instance operation with a required
+filesystem root:
 
 ```ruby
-path.local_path(encoding: Encoding::System)
+path.local_path(root)
 ```
 
-Conceptually, this is layered on decoded components:
+Conceptually, this is layered on decoded components and lexical containment:
 
-1. Obtain components using the selected URL encoding.
+1. Expand the supplied root to an absolute filesystem path.
+2. Obtain components using `Encoding::System`.
+3. Remove the URL-root marker from an absolute URL path.
+4. Join the root and remaining components.
+5. Expand `.` and `..` lexically.
+6. Verify that the result is the root itself or remains beneath it.
+
+`Encoding::System` continues to:
+
+1. Decode each URL segment exactly once.
 2. Reject invalid byte or character encoding.
 3. Reject NUL and decoded platform path separators.
 4. Convert each component to the filesystem character encoding.
-5. Join the resulting local components with the platform separator.
 
 `Encoding::System` implements the same `escape`/`unescape` interface as other
 path encodings, but its `unescape` operation additionally enforces the
@@ -118,8 +126,10 @@ one-URL-segment-to-one-local-component boundary and performs filesystem
 transcoding. It is a module representing the current platform rather than an
 instantiable encoding policy.
 
-`local_path` does not resolve `.` or `..` and does not establish containment.
-Callers must simplify and enforce their filesystem root policy separately.
+`local_path` establishes lexical containment beneath the supplied root. It does
+not resolve symbolic links or prevent filesystem races between validation and
+opening a returned pathname. Applications serving attacker-writable trees need
+an operation-oriented interface with an explicit symlink policy.
 
 ## Equality and ordering
 

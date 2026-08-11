@@ -44,13 +44,13 @@ module Protocol
 			# @attribute [String, nil] The fragment identifier.
 			attr :fragment
 			
-			# Convert the URL path to a local filesystem path.
+			# Resolve the URL path beneath a local filesystem root.
 			#
-			# @parameter encoding [Object] An encoding which maps URL segments to system path components.
-			# @returns [String] The local filesystem path.
-			# @raises [ArgumentError] If a URL segment cannot map to one local filesystem component.
-			def local_path(encoding: Encoding::System)
-				@path.local_path(encoding: encoding)
+			# @parameter root [String] The filesystem root beneath which to resolve the URL path.
+			# @returns [String] The expanded local filesystem path.
+			# @raises [ArgumentError] If a URL segment is invalid or the path escapes the specified root.
+			def local_path(root)
+				@path.local_path(root)
 			end
 			
 			alias to_local_path local_path

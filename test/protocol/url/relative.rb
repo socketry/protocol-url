@@ -257,25 +257,27 @@ describe Protocol::URL::Relative do
 	end
 	
 	with "#local_path" do
+		let(:root) {File.expand_path("public", Dir.pwd)}
+		
 		it "converts path to local file system path" do
 			url = Protocol::URL::Relative.new("/documents/report.pdf")
-			expect(url.local_path).to be == "/documents/report.pdf"
+			expect(url.local_path(root)).to be == File.join(root, "documents", "report.pdf")
 		end
 		
 		it "handles percent-encoded characters" do
 			url = Protocol::URL::Relative.new("/files/My%20Document.txt")
-			expect(url.local_path).to be == "/files/My Document.txt"
+			expect(url.local_path(root)).to be == File.join(root, "files", "My Document.txt")
 		end
 		
 		it "handles unicode characters" do
 			url = Protocol::URL::Relative.new("/files/%E2%9D%A4%EF%B8%8F.txt")
-			expect(url.local_path).to be == "/files/❤️.txt"
+			expect(url.local_path(root)).to be == File.join(root, "files", "❤️.txt")
 		end
 		
 		it "rejects encoded path separators" do
 			url = Protocol::URL::Relative.new("/safe%2Fname/file.txt")
 			expect do
-				url.local_path
+				url.local_path(root)
 			end.to raise_exception(ArgumentError, message: be =~ /invalid characters/)
 		end
 	end

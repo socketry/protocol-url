@@ -224,20 +224,29 @@ module Protocol
 				encoded.hash
 			end
 			
-			# Convert a URL path to a local file system path.
+			# Resolve a URL path beneath a local filesystem root.
 			#
 			# Each decoded URL component must map to exactly one local path component. Components
 			# containing NUL or a platform path separator cannot be represented and are rejected.
+			# Absolute URL paths are interpreted relative to `root`, not the filesystem root.
 			#
-			# @parameter encoding [Object] An encoding which maps URL segments to system path components.
-			# @returns [String] The local file system path.
-			# @raises [ArgumentError] If a URL segment cannot map to one local filesystem component.
+			# @parameter root [String] The filesystem root beneath which to resolve the URL path.
+			# @returns [String] The expanded local filesystem path.
+			# @raises [ArgumentError] If a URL segment is invalid or the path escapes the specified root.
 			#
-			# This conversion does not simplify `.` or `..` components or establish containment
-			# beneath an application root. Simplify and apply the application's containment
-			# policy before using a path from an untrusted source.
-			def local_path(encoding: Encoding::System)
-				File.join(*components(encoding))
+			# This establishes lexical containment only. It does not resolve symbolic links or
+			# prevent filesystem races while a returned path is subsequently opened.
+			def local_path(root)
+				root = File.expand_path(root)
+				root_prefix = root.end_with?(File::SEPARATOR) ? root : root + File::SEPARATOR
+				
+				components = self.components(Encoding::System)
+				components.shift if components.first == ""
+				
+				path = File.expand_path(File.join(root, *components))
+				return path if path == root || path.start_with?(root_prefix)
+				
+				raise ArgumentError, "Path escapes the specified root!"
 			end
 			
 			alias to_s encoded

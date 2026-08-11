@@ -174,36 +174,38 @@ Protocol::URL::Path["/a/b/file.html"].join("other.html", pop: false).to_s
 
 ### Converting to Local File System Paths
 
-Convert URL paths to local file system paths safely:
+Resolve URL paths beneath a required local filesystem root:
 
 ``` ruby
-# Convert URL path to local file system path:
-Protocol::URL::Path["/documents/report.pdf"].local_path
-# => "/documents/report.pdf"
+root = "/srv/public"
+
+# An absolute URL path is relative to the supplied filesystem root:
+Protocol::URL::Path["/documents/report.pdf"].local_path(root)
+# => "/srv/public/documents/report.pdf"
 
 # Handles percent-encoded characters:
-Protocol::URL::Path["/files/My%20Document.txt"].local_path
-# => "/files/My Document.txt"
+Protocol::URL::Path["/files/My%20Document.txt"].local_path(root)
+# => "/srv/public/files/My Document.txt"
 
 # Encoded separators which cannot map to one local component are rejected:
-Protocol::URL::Path["/folder/safe%2Fname/file.txt"].local_path
+Protocol::URL::Path["/folder/safe%2Fname/file.txt"].local_path(root)
+# Raises ArgumentError.
+
+# Parent traversal beyond the supplied root is rejected:
+Protocol::URL::Path["/../../etc/passwd"].local_path(root)
 # Raises ArgumentError.
 ```
 
-`local_path` decodes with `Protocol::URL::Encoding::System` by default. It
-enforces a one-to-one mapping between URL components and file-system components:
-an encoded separator such as `%2F` cannot become an extra file-system boundary.
-It deliberately does not simplify `.` or `..`, because leading parent
-components are meaningful in relative paths. For paths from an untrusted
-source, establish the URL-path policy before conversion:
+`local_path` decodes each segment exactly once with
+`Protocol::URL::Encoding::System`, enforces a one-to-one mapping between URL and
+filesystem components, resolves `.` and `..` lexically, and returns an expanded
+path only when it remains beneath the supplied root.
 
-``` ruby
-path = Protocol::URL::Path[encoded_request_path]
-path = path.simplify
-system_path = path.local_path
-```
-
-For absolute URL paths, `simplify` resolves dot segments and prevents navigation above the URL root. For relative paths, unresolved leading `..` components are retained. `local_path` does not by itself guarantee containment beneath an application directory; the caller must enforce that trust boundary when resolving the resulting system path.
+This is lexical containment. It does not resolve symbolic links or prevent a
+race between validating the pathname and opening it. The filesystem tree
+beneath the root must be trusted against attacker-controlled symlinks; serving
+an attacker-writable tree requires an operation-oriented interface with an
+explicit symlink policy.
 
 ## Working with References
 

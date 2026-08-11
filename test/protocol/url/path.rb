@@ -429,121 +429,124 @@ describe Protocol::URL::Path do
 	end
 	
 	with "#local_path" do
-		it "converts simple absolute path" do
-			result = Protocol::URL::Path["/documents/report.pdf"].local_path
-			expect(result).to be == "/documents/report.pdf"
+		let(:root) {File.expand_path("public", Dir.pwd)}
+		
+		it "requires a filesystem root" do
+			expect do
+				Protocol::URL::Path["/documents/report.pdf"].local_path
+			end.to raise_exception(ArgumentError)
 		end
 		
-		it "converts simple relative path" do
-			result = Protocol::URL::Path["documents/report.pdf"].local_path
-			expect(result).to be == "documents/report.pdf"
-		end
-		
-		it "unescapes percent-encoded characters" do
-			result = Protocol::URL::Path["/files/My%20Document.txt"].local_path
-			expect(result).to be == "/files/My Document.txt"
-		end
-		
-		it "unescapes unicode characters" do
-			result = Protocol::URL::Path["/files/%E2%9D%A4%EF%B8%8F.txt"].local_path
-			expect(result).to be == "/files/❤️.txt"
-		end
-		
-		it "accepts an explicit system path encoding" do
-			encoding = Object.new
-			encoding.define_singleton_method(:unescape){|segment| "local-#{segment}"}
+		it "resolves absolute and relative URL paths beneath the root" do
+			expected = File.join(root, "documents", "report.pdf")
 			
-			expect(Protocol::URL::Path["file"].local_path(encoding: encoding)).to be == "local-file"
+			expect(Protocol::URL::Path["/documents/report.pdf"].local_path(root)).to be == expected
+			expect(Protocol::URL::Path["documents/report.pdf"].local_path(root)).to be == expected
+		end
+		
+		it "unescapes percent-encoded and Unicode characters" do
+			expect(Protocol::URL::Path["/files/My%20Document.txt"].local_path(root)).to be == File.join(root, "files", "My Document.txt")
+			expect(Protocol::URL::Path["/files/%E2%9D%A4%EF%B8%8F.txt"].local_path(root)).to be == File.join(root, "files", "❤️.txt")
 		end
 		
 		it "rejects invalid component encoding" do
 			path = Protocol::URL::Path.for(["\xFF".dup.force_encoding(::Encoding::UTF_8)])
 			
 			expect do
-				path.local_path
+				path.local_path(root)
 			end.to raise_exception(ArgumentError, message: be == "Path component has invalid encoding!")
 		end
 		
-		it "preserves empty path" do
-			result = Protocol::URL::Path[""].local_path
-			expect(result).to be == ""
+		it "resolves empty and root paths to the filesystem root" do
+			expect(Protocol::URL::Path[""].local_path(root)).to be == root
+			expect(Protocol::URL::Path["/"].local_path(root)).to be == root
 		end
 		
-		it "converts root path" do
-			result = Protocol::URL::Path["/"].local_path
-			expect(result).to be == "/"
-		end
-		
-		it "handles path with trailing slash" do
-			result = Protocol::URL::Path["/documents/folder/"].local_path
-			expect(result).to be == "/documents/folder/"
-		end
-		
-		it "preserves parent components for the caller to resolve" do
-			result = Protocol::URL::Path["/documents/../private.txt"].local_path
+		it "normalizes trailing separators on roots and URL paths" do
+			path = Protocol::URL::Path["/documents/folder/"]
+			expected = File.join(root, "documents", "folder")
 			
-			expect(result).to be == "/documents/../private.txt"
+			expect(path.local_path(root + File::SEPARATOR)).to be == expected
+		end
+		
+		it "resolves parent components which remain within the root" do
+			path = Protocol::URL::Path["/documents/../private.txt"]
+			
+			expect(path.local_path(root)).to be == File.join(root, "private.txt")
+		end
+		
+		it "rejects literal or percent-encoded traversal beyond the root" do
+			["../etc/passwd", "/../../etc/passwd", "/%2E%2E/%2E%2E/etc/passwd"].each do |encoded|
+				expect do
+					Protocol::URL::Path[encoded].local_path(root)
+				end.to raise_exception(ArgumentError, message: be == "Path escapes the specified root!")
+			end
+		end
+		
+		it "does not confuse roots with sibling path prefixes" do
+			path = Protocol::URL::Path["../publicity/file.txt"]
+			
+			expect do
+				path.local_path(root)
+			end.to raise_exception(ArgumentError, message: be == "Path escapes the specified root!")
+		end
+		
+		it "expands relative filesystem roots" do
+			relative_root = File.join("tmp", "public")
+			
+			expect(Protocol::URL::Path["file.txt"].local_path(relative_root)).to be == File.expand_path(File.join(relative_root, "file.txt"))
 		end
 		
 		with "security: encoded path separators" do
 			it "rejects encoded NUL characters" do
 				expect do
-					Protocol::URL::Path["/folder/file%00.txt"].local_path
+					Protocol::URL::Path["/folder/file%00.txt"].local_path(root)
 				end.to raise_exception(ArgumentError, message: be == "Path component contains invalid characters!")
 			end
 			
 			it "rejects %2F within a component" do
 				expect do
-					Protocol::URL::Path["/folder/safe%2Fname/file.txt"].local_path
+					Protocol::URL::Path["/folder/safe%2Fname/file.txt"].local_path(root)
 				end.to raise_exception(ArgumentError, message: be =~ /invalid characters/)
 			end
 			
 			it "handles %5C according to the platform" do
 				if File::ALT_SEPARATOR
 					expect do
-						Protocol::URL::Path["/folder/name%5Cfile.txt"].local_path
+						Protocol::URL::Path["/folder/name%5Cfile.txt"].local_path(root)
 					end.to raise_exception(ArgumentError, message: be =~ /invalid characters/)
 				else
-					result = Protocol::URL::Path["/folder/name%5Cfile.txt"].local_path
-					expect(result).to be == "/folder/name\\file.txt"
+					result = Protocol::URL::Path["/folder/name%5Cfile.txt"].local_path(root)
+					expect(result).to be == File.join(root, "folder", "name\\file.txt")
 				end
 			end
 			
 			it "rejects multiple encoded separators" do
 				expect do
-					Protocol::URL::Path["/a%2Fb%2Fc/d.txt"].local_path
+					Protocol::URL::Path["/a%2Fb%2Fc/d.txt"].local_path(root)
 				end.to raise_exception(ArgumentError, message: be =~ /invalid characters/)
 			end
 			
 			it "rejects encoded separators after decoding other characters" do
 				expect do
-					Protocol::URL::Path["/folder/My%20File%2Fname.txt"].local_path
+					Protocol::URL::Path["/folder/My%20File%2Fname.txt"].local_path(root)
 				end.to raise_exception(ArgumentError, message: be =~ /invalid characters/)
-			end
-			
-			it "preserves parent components for caller-side policy enforcement" do
-				# Local conversion decodes segments but deliberately does not simplify
-				# parent components or enforce filesystem containment.
-				result = Protocol::URL::Path["/folder/%2E%2E/file.txt"].local_path
-				expect(result).to be == "/folder/../file.txt"
 			end
 		end
 		
 		with "edge cases" do
-			it "handles multiple consecutive slashes" do
-				# Multiple slashes create empty components, File.join collapses them
-				result = Protocol::URL::Path["/a//b///c"].local_path
-				expect(result).to be == "/a/b/c"
+			it "collapses repeated leading and intermediate separators beneath the root" do
+				expect(Protocol::URL::Path["//a//b///c"].local_path(root)).to be == File.join(root, "a", "b", "c")
 			end
 			
-			it "handles special characters in filenames" do
-				result = Protocol::URL::Path["/files/name%21%40%23.txt"].local_path
-				expect(result).to be == "/files/name!@#.txt"
+			it "preserves tilde-prefixed components literally" do
+				expect(Protocol::URL::Path["~/file.txt"].local_path(root)).to be == File.join(root, "~", "file.txt")
+				expect(Protocol::URL::Path["~root/file.txt"].local_path(root)).to be == File.join(root, "~root", "file.txt")
 			end
 			
-			it "handles mixed encoded and unencoded" do
-				result = Protocol::URL::Path["/files/My%20Documents/file.txt"].local_path
-				expect(result).to be == "/files/My Documents/file.txt"
+			it "handles special and mixed encoded characters" do
+				expect(Protocol::URL::Path["/files/name%21%40%23.txt"].local_path(root)).to be == File.join(root, "files", "name!@#.txt")
+				expect(Protocol::URL::Path["/files/My%20Documents/file.txt"].local_path(root)).to be == File.join(root, "files", "My Documents", "file.txt")
 			end
 		end
 	end
