@@ -521,9 +521,9 @@ describe Protocol::URL::Path do
 				end.to raise_exception(ArgumentError, message: be =~ /invalid characters/)
 			end
 			
-			it "allows encoded dots (not path traversal when literal)" do
-				# %2E is the encoded form of .
-				# Two of them (%2E%2E) as literal characters are fine - they're not ".."
+			it "preserves parent components for caller-side policy enforcement" do
+				# Local conversion decodes segments but deliberately does not simplify
+				# parent components or enforce filesystem containment.
 				result = Protocol::URL::Path["/folder/%2E%2E/file.txt"].local_path
 				expect(result).to be == "/folder/../file.txt"
 			end
