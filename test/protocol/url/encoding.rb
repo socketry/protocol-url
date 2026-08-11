@@ -29,6 +29,60 @@ describe Protocol::URL::Encoding do
 			expect(Protocol::URL::Encoding.unescape("safe%2Fname")).to be == "safe/name"
 			expect(Protocol::URL::Encoding.unescape("name%5Cfile")).to be == "name\\file"
 		end
+		
+		it "rejects incomplete percent encoding" do
+			expect do
+				Protocol::URL::Encoding.unescape("value%2")
+			end.to raise_exception(ArgumentError, message: be == "String contains malformed percent encoding!")
+		end
+		
+		it "rejects non-hexadecimal percent encoding" do
+			expect do
+				Protocol::URL::Encoding.unescape("value%GG")
+			end.to raise_exception(ArgumentError, message: be == "String contains malformed percent encoding!")
+		end
+		
+		it "accepts syntactically valid percent encoding independently of character encoding" do
+			result = Protocol::URL::Encoding.unescape("%FF")
+			
+			expect(result.bytes).to be == [0xFF]
+		end
+		
+		it "decodes percent encoding only once" do
+			expect(Protocol::URL::Encoding.unescape("%252F")).to be == "%2F"
+		end
+	end
+	
+	describe Protocol::URL::Encoding::System do
+		it "escapes a local filesystem component" do
+			expect(subject.escape("My File.txt")).to be == "My%20File.txt"
+		end
+		
+		it "unescapes a URL segment using UTF-8" do
+			segment = "%E2%9D%A4%EF%B8%8F.txt".b
+			
+			expect(subject.unescape(segment)).to be == "❤️.txt"
+		end
+		
+		it "rejects decoded system path separators" do
+			expect do
+				subject.unescape("safe%2Fname")
+			end.to raise_exception(ArgumentError, message: be == "Path component contains invalid characters!")
+		end
+		
+		it "rejects invalid decoded character encoding" do
+			expect do
+				subject.unescape("%FF")
+			end.to raise_exception(ArgumentError, message: be == "Path component has invalid encoding!")
+		end
+		
+		it "rejects a local component which cannot be converted to UTF-8" do
+			component = "\xFF".b
+			
+			expect do
+				subject.escape(component)
+			end.to raise_exception(ArgumentError, message: be == "Path component could not be transcoded!")
+		end
 	end
 	
 	describe ".encode" do

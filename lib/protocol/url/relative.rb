@@ -34,9 +34,11 @@ module Protocol
 			
 			# Convert the URL path to a local filesystem path.
 			#
+			# @parameter encoding [Object] An encoding which maps URL segments to system path components.
 			# @returns [String] The local filesystem path.
-			def local_path
-				@path.local_path
+			# @raises [ArgumentError] If a URL segment cannot map to one local filesystem component.
+			def local_path(encoding: Encoding::System)
+				@path.local_path(encoding: encoding)
 			end
 			
 			alias to_local_path local_path

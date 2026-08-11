@@ -87,9 +87,9 @@ module Protocol
 				self.[](value, parameters)
 			end
 			
-			# Initialize the reference with raw, unescaped values.
+			# Initialize the reference from an encoded path and reference values.
 			#
-			# @parameter path [String | Path] An unescaped path string, or an existing path.
+			# @parameter path [String | Path] The encoded path string, or an existing path.
 			# @parameter query [String | Nil] An already-formatted query string.
 			# @parameter fragment [String | Nil] The unescaped fragment.
 			# @parameter parameters [Hash | Nil] User supplied parameters that will be safely encoded.
@@ -98,12 +98,6 @@ module Protocol
 			# 	reference = Reference.new("/search", nil, nil, {"query" => "ruby", "limit" => "10"})
 			# 	reference.to_s  # => "/search?query=ruby&limit=10"
 			def initialize(path = "/", query = nil, fragment = nil, parameters = nil)
-				unless path.is_a?(Path)
-					# `new` accepts a decoded path string. Literal slashes in this legacy
-					# representation are structural separators.
-					path = Path[path.to_s.split("/", -1)]
-				end
-				
 				super(path, query, fragment)
 				@parameters = parameters
 			end
@@ -204,7 +198,7 @@ module Protocol
 			
 			# Update the reference with the given path, query, fragment, and parameters.
 			#
-			# @parameter path [String | Path] Append the path to this reference similar to `File.join`.
+			# @parameter path [String | Path] Append the encoded path to this reference similar to `File.join`.
 			# @parameter query [String | Nil] Replace the query string. Defaults to keeping the existing query if not specified.
 			# @parameter fragment [String | Nil] Replace the fragment. Defaults to keeping the existing fragment if not specified.
 			# @parameter parameters [Hash | false] Parameters to merge or replace. Pass `false` (default) to keep existing parameters.
@@ -259,10 +253,6 @@ module Protocol
 				if path.nil?
 					path = @path
 				else
-					unless path.is_a?(Path)
-						path = Path[path.to_s.split("/", -1)]
-					end
-					
 					path = @path.join(path, pop: pop)
 				end
 				

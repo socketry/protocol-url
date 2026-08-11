@@ -16,15 +16,48 @@ describe Protocol::URL::Path do
 		it "interprets strings as encoded paths" do
 			path = Protocol::URL::Path["/a/b%2Fc"]
 			
+			expect(path.segments).to be == ["", "a", "b%2Fc"]
 			expect(path.components).to be == ["", "a", "b/c"]
 		end
 		
-		it "interprets arrays as decoded components" do
-			path = Protocol::URL::Path[["", "a", "b/c"]]
+		it "interprets arrays as encoded segments" do
+			path = Protocol::URL::Path[["", "a", "b%2Fc"]]
 			
+			expect(path.encoded).to be == "/a/b%2Fc"
+			expect(path.components).to be == ["", "a", "b/c"]
+		end
+		
+		it "rejects structural separators inside encoded segments" do
+			expect do
+				Protocol::URL::Path[["a/b"]]
+			end.to raise_exception(ArgumentError, message: be == "Path contains an invalid encoded segment!")
+		end
+		
+	end
+	
+	with ".for" do
+		it "escapes decoded components independently" do
+			path = Protocol::URL::Path.for(["", "a", "b/c"])
+			
+			expect(path.segments).to be == ["", "a", "b%2Fc"]
 			expect(path.encoded).to be == "/a/b%2Fc"
 		end
 		
+		it "supports a custom encoding" do
+			encoding = Object.new
+			encoding.define_singleton_method(:escape){|component| "x#{component}"}
+			
+			expect(Protocol::URL::Path.for(["a", "b"], encoding: encoding).encoded).to be == "xa/xb"
+		end
+		
+		it "rejects an encoding which produces a separator" do
+			encoding = Object.new
+			encoding.define_singleton_method(:escape){|component| component + "/invalid"}
+			
+			expect do
+				Protocol::URL::Path.for(["a"], encoding: encoding)
+			end.to raise_exception(ArgumentError, message: be == "Path encoding produced an invalid segment!")
+		end
 	end
 	
 	with ".new" do
@@ -37,36 +70,42 @@ describe Protocol::URL::Path do
 	end
 	
 	with "#freeze" do
-		it "materializes and freezes both representations" do
+		it "materializes and freezes both lossless representations" do
 			path = Protocol::URL::Path["/a/b"]
 			
 			expect(path.freeze).to be_equal(path)
 			expect(path).to be(:frozen?)
 			expect(path.encoded).to be(:frozen?)
-			expect(path.components).to be(:frozen?)
+			expect(path.segments).to be(:frozen?)
 			expect(path.freeze).to be_equal(path)
 		end
 		
-		it "freezes paths constructed from components" do
-			path = Protocol::URL::Path[["", "a", "b/c"]]
+		it "freezes paths constructed from segments" do
+			path = Protocol::URL::Path[["", "a", "b%2Fc"]]
 			
 			expect(path.freeze).to be_equal(path)
 			expect(path.encoded).to be == "/a/b%2Fc"
+			expect(path.segments).to be == ["", "a", "b%2Fc"]
 			expect(path.components).to be == ["", "a", "b/c"]
 		end
 	end
 	
 	with "value semantics" do
 		it "exposes the encoded representation" do
-			path = Protocol::URL::Path[["", "a", "b/c"]]
+			path = Protocol::URL::Path[["", "a", "b%2Fc"]]
 			
 			expect(path.encoded).to be == "/a/b%2Fc"
 			expect(path.to_s).to be == path.encoded
 		end
 		
-		it "compares decoded components" do
-			expect(Protocol::URL::Path["/a/%62"]).to be == Protocol::URL::Path["/a/b"]
-			expect(Protocol::URL::Path["/a/%62"].hash).to be == Protocol::URL::Path["/a/b"].hash
+		it "compares exact encoded representations" do
+			encoded = Protocol::URL::Path["/a/%62"]
+			literal = Protocol::URL::Path["/a/b"]
+			
+			expect(encoded).not.to be == literal
+			expect(encoded).not.to be(:eql?, literal)
+			expect(encoded <=> literal).not.to be == 0
+			expect(encoded.hash).to be == Protocol::URL::Path["/a/%62"].hash
 		end
 		
 		it "preserves encoded separator boundaries" do
@@ -76,6 +115,18 @@ describe Protocol::URL::Path do
 			expect(encoded_separator.components).to be == ["", "a", "b/c"]
 			expect(encoded_separator).not.to be == structural_separator
 		end
+		
+		it "decodes components on each call using the requested encoding" do
+			path = Protocol::URL::Path["a"]
+			first = Object.new
+			first.define_singleton_method(:unescape){|segment| "first:#{segment}"}
+			second = Object.new
+			second.define_singleton_method(:unescape){|segment| "second:#{segment}"}
+			
+			expect(path.components(first)).to be == ["first:a"]
+			expect(path.components(second)).to be == ["second:a"]
+			expect(path.components(first)).not.to be_equal(path.components(first))
+		end
 	end
 	
 	with "path properties" do
@@ -84,7 +135,7 @@ describe Protocol::URL::Path do
 			expect(Protocol::URL::Path["a"]).to be(:relative?)
 		end
 		
-		it "distinguishes component-backed absolute and relative paths" do
+		it "distinguishes segment-backed absolute and relative paths" do
 			expect(Protocol::URL::Path[["", "a"]]).to be(:absolute?)
 			expect(Protocol::URL::Path[["a"]]).to be(:relative?)
 		end
@@ -94,7 +145,7 @@ describe Protocol::URL::Path do
 			expect(Protocol::URL::Path["/a/b"]).not.to be(:directory?)
 		end
 		
-		it "identifies component-backed files and directories" do
+		it "identifies segment-backed files and directories" do
 			expect(Protocol::URL::Path[["", "a", "b", ""]]).to be(:directory?)
 			expect(Protocol::URL::Path[["", "a", "b"]]).not.to be(:directory?)
 		end
@@ -166,6 +217,10 @@ describe Protocol::URL::Path do
 			expect(Protocol::URL::Path["/a%2Fb/c"].parent).to be == Protocol::URL::Path["/a%2Fb"]
 		end
 		
+		it "preserves reserved escapes in the parent" do
+			expect(Protocol::URL::Path["a%3Ab/c"].parent.encoded).to be == "a%3Ab"
+		end
+		
 		it "removes a trailing directory component" do
 			expect(Protocol::URL::Path["/a/b/"].parent).to be == Protocol::URL::Path["/a/b"]
 		end
@@ -229,6 +284,18 @@ describe Protocol::URL::Path do
 			
 			expect(path.simplify).to be_equal(path)
 		end
+		
+		it "preserves reserved escapes in retained segments" do
+			path = Protocol::URL::Path["a%3Ab/./c"]
+			
+			expect(path.simplify.encoded).to be == "a%3Ab/c"
+		end
+		
+		it "simplifies percent-encoded dot segments" do
+			path = Protocol::URL::Path["/a/%2e/b/.%2E/c"]
+			
+			expect(path.simplify.encoded).to be == "/a/c"
+		end
 	end
 	
 	with "#simplify!" do
@@ -290,6 +357,24 @@ describe Protocol::URL::Path do
 			
 			expect(result).to be == Protocol::URL::Path["/d"]
 		end
+		
+		it "preserves reserved escapes in retained segments" do
+			result = Protocol::URL::Path["a%3Ab/c"].join("d")
+			
+			expect(result.encoded).to be == "a%3Ab/d"
+		end
+		
+		it "preserves encoded semicolons in retained segments" do
+			result = Protocol::URL::Path["g%3Bx/c"].join("d")
+			
+			expect(result.encoded).to be == "g%3Bx/d"
+		end
+		
+		it "treats encoded dot segments as traversal" do
+			result = Protocol::URL::Path["/a/b"].join("%2E%2E/d")
+			
+			expect(result.encoded).to be == "/d"
+		end
 	end
 	
 	with ".relative" do
@@ -324,6 +409,10 @@ describe Protocol::URL::Path do
 		it "handles target without trailing slash" do
 			expect(Protocol::URL::Path.relative("/foo/bar", "/baz/")).to be == "../foo/bar"
 		end
+		
+		it "compares encoded segments without normalizing reserved escapes" do
+			expect(Protocol::URL::Path.relative("/a%3Ab/d", "/a:b/c")).to be == "../a%3Ab/d"
+		end
 	end
 	
 	with "#local_path" do
@@ -347,20 +436,19 @@ describe Protocol::URL::Path do
 			expect(result).to be == "/files/❤️.txt"
 		end
 		
+		it "accepts an explicit system path encoding" do
+			encoding = Object.new
+			encoding.define_singleton_method(:unescape){|segment| "local-#{segment}"}
+			
+			expect(Protocol::URL::Path["file"].local_path(encoding: encoding)).to be == "local-file"
+		end
+		
 		it "rejects invalid component encoding" do
-			path = Protocol::URL::Path[["\xFF".dup.force_encoding(::Encoding::UTF_8)]]
+			path = Protocol::URL::Path.for(["\xFF".dup.force_encoding(::Encoding::UTF_8)])
 			
 			expect do
 				path.local_path
-			end.to raise_exception(ArgumentError, message: be == "Path has invalid encoding!")
-		end
-		
-		it "rejects components unavailable in the requested encoding" do
-			path = Protocol::URL::Path[["❤️.txt"]]
-			
-			expect do
-				path.local_path(encoding: ::Encoding::US_ASCII)
-			end.to raise_exception(ArgumentError, message: be == "Path could not be converted to a local path!")
+			end.to raise_exception(ArgumentError, message: be == "Path component has invalid encoding!")
 		end
 		
 		it "preserves empty path" do
@@ -385,6 +473,12 @@ describe Protocol::URL::Path do
 		end
 		
 		with "security: encoded path separators" do
+			it "rejects encoded NUL characters" do
+				expect do
+					Protocol::URL::Path["/folder/file%00.txt"].local_path
+				end.to raise_exception(ArgumentError, message: be == "Path component contains invalid characters!")
+			end
+			
 			it "rejects %2F within a component" do
 				expect do
 					Protocol::URL::Path["/folder/safe%2Fname/file.txt"].local_path

@@ -7,25 +7,24 @@ require_relative "encoding"
 
 module Protocol
 	module URL
-		# Represents a URL path without losing the boundary between URL path components.
+		# Represents a URL path without losing its encoded segment boundaries.
 		#
-		# String input is interpreted as an encoded URL path. Array input is interpreted as
-		# decoded components. A literal `/` in an encoded string is structural, while `%2F`
-		# decodes to data within a single component.
+		# String input is interpreted as an encoded URL path. A literal `/` is structural,
+		# while `%2F` remains encoded data within a single segment. Decoding is explicit and
+		# controlled by the encoding object passed to {components}.
 		class Path
 			include Comparable
 			
 			# The path separator.
 			SEPARATOR = "/"
 			
-			EMPTY_COMPONENTS = [].freeze
-			ROOT_COMPONENTS = ["", ""].freeze
-			INVALID_COMPONENT_PATTERN = /([^a-zA-Z0-9_\-\.~!$&'()*+,;=:@]+)/.freeze
-			private_constant :EMPTY_COMPONENTS, :ROOT_COMPONENTS, :INVALID_COMPONENT_PATTERN
+			EMPTY_SEGMENTS = [].freeze
+			ROOT_SEGMENTS = ["", ""].freeze
+			private_constant :EMPTY_SEGMENTS, :ROOT_SEGMENTS
 			
-			# Coerce an encoded string or decoded component array into a path.
+			# Coerce an encoded string or encoded segment array into a path.
 			#
-			# @parameter path [String | Array(String) | Path] The value to coerce.
+			# @parameter path [String | Array(String) | Path] The encoded value to coerce.
 			# @returns [Path] The coerced path, or the existing path unchanged.
 			def self.[](path)
 				if path.is_a?(self)
@@ -35,6 +34,29 @@ module Protocol
 				else
 					return self.new(path.to_s)
 				end
+			end
+			
+			# Construct a path from decoded components.
+			#
+			# Each component is escaped independently, so decoded `/` characters remain data
+			# inside one encoded segment rather than becoming structural separators.
+			#
+			# @parameter components [Array(String)] The decoded path components.
+			# @parameter encoding [Object] An object implementing `escape(String)`.
+			# @returns [Path] The encoded path.
+			# @raises [ArgumentError] If the encoding does not produce one valid encoded segment per component.
+			def self.for(components, encoding: Encoding)
+				segments = components.map do |component|
+					segment = encoding.escape(component)
+					
+					unless segment.is_a?(String) && !segment.include?(SEPARATOR)
+						raise ArgumentError, "Path encoding produced an invalid segment!"
+					end
+					
+					segment
+				end
+				
+				return self.new(nil, segments)
 			end
 			
 			# Calculate the relative path from one absolute path to another.
@@ -57,52 +79,45 @@ module Protocol
 				return Path[target].relative(from).to_s
 			end
 			
-			# Initialize a path from either its encoded representation or decoded components.
+			# Initialize a path from either its complete encoded representation or encoded segments.
 			#
 			# @parameter encoded [String | Nil] The encoded URL path.
-			# @parameter components [Array(String) | Nil] The decoded path components.
-			def initialize(encoded, components = nil)
+			# @parameter segments [Array(String) | Nil] The encoded path segments.
+			# @raises [ArgumentError] If an encoded segment contains a structural separator.
+			def initialize(encoded, segments = nil)
 				if encoded
 					@encoded = -encoded
 				end
 				
-				if encoded.nil? && components.nil?
-					components = EMPTY_COMPONENTS
-				elsif components && !components.frozen?
-					# Only dup if we need to:
-					components = components.dup.map!(&:-@).freeze
+				if encoded.nil? && segments.nil?
+					segments = EMPTY_SEGMENTS
+				elsif segments
+					segments.each do |segment|
+						unless segment.is_a?(String) && !segment.include?(SEPARATOR)
+							raise ArgumentError, "Path contains an invalid encoded segment!"
+						end
+					end
+					
+					segments = segments.dup.freeze unless segments.frozen?
 				end
 				
-				@components = components
+				@segments = segments
 			end
 			
-			# Freeze the path and materialize both representations as immutable values.
+			# Freeze the path and materialize both lossless representations.
 			# @returns [Path] The frozen path.
 			def freeze
 				return self if frozen?
 				
-				if @components and !@components.frozen?
-					@components = @components.dup.freeze
-				else
-					self.components # Already calls freeze.
-				end
-				
-				if @encoded and !@encoded.frozen?
-					@encoded.freeze
-				else
-					self.encoded # Already calls freeze.
-				end
+				self.segments
+				self.encoded
 				
 				return super
 			end
 			
 			# @returns [Boolean] Whether the path begins at the URL path root.
 			def absolute?
-				if @encoded
-					return @encoded.start_with?(SEPARATOR)
-				end
-				
-				return @components.first == ""
+				encoded.start_with?(SEPARATOR)
 			end
 			
 			# @returns [Boolean] Whether the path is relative to another URL path.
@@ -112,11 +127,7 @@ module Protocol
 			
 			# @returns [Boolean] Whether the path has a trailing separator.
 			def directory?
-				if @encoded
-					return @encoded.end_with?(SEPARATOR)
-				end
-				
-				return @components.last == ""
+				encoded.end_with?(SEPARATOR)
 			end
 			
 			# The final decoded component. A path with a trailing separator has an empty basename.
@@ -148,99 +159,91 @@ module Protocol
 					raise ArgumentError, "Path parent level must be a non-negative integer!"
 				end
 				
-				components = self.components
-				return self if level == 0 || components.empty? || components == ROOT_COMPONENTS
+				segments = self.segments
+				return self if level == 0 || segments.empty? || segments == ROOT_SEGMENTS
 				
-				remaining = components.size - level
+				remaining = segments.size - level
 				if absolute?
-					components = remaining <= 1 ? ROOT_COMPONENTS : components.first(remaining)
+					segments = remaining <= 1 ? ROOT_SEGMENTS : segments.first(remaining)
 				else
-					components = remaining <= 0 ? EMPTY_COMPONENTS : components.first(remaining)
+					segments = remaining <= 0 ? EMPTY_SEGMENTS : segments.first(remaining)
 				end
 				
-				return self.class.new(nil, components)
+				return self.class.new(nil, segments)
 			end
 			
-			# @returns [Array(String)] The decoded components, preserving their boundaries.
-			def components
-				@components ||= @encoded.split(SEPARATOR, -1).map! do |component|
-					Encoding.unescape(component).freeze
-				end.freeze
+			# @returns [Array(String)] The encoded segments, preserving their exact spelling.
+			def segments
+				@segments ||= @encoded.split(SEPARATOR, -1).map!(&:-@).freeze
+			end
+			
+			# Decode the path segments using the given encoding.
+			#
+			# The result is not cached because different encoding objects can produce different
+			# component values. In particular, a decoded component may contain `/` without
+			# changing its boundary in the returned array.
+			#
+			# @parameter encoding [Object] An object implementing `unescape(String)`.
+			# @returns [Array(String)] The decoded components.
+			def components(encoding = Encoding)
+				segments.map{|segment| encoding.unescape(segment)}
 			end
 			
 			# @returns [String] The encoded URL path.
 			def encoded
-				@encoded ||= @components.map{|component|
-					component.b.gsub(INVALID_COMPONENT_PATTERN) do |match|
-						"%" + match.unpack("H2" * match.bytesize).join("%").upcase
-					end.force_encoding(component.encoding)
-				}.join(SEPARATOR).freeze
+				@encoded ||= @segments.join(SEPARATOR).freeze
 			end
 			
 			# @returns [Boolean] Whether the path contains no components.
 			def empty?
-				components.empty?
+				encoded.empty?
 			end
 			
-			# Paths compare by their decoded components, not by their encoded spelling.
-			# Component boundaries remain significant, so `%2F` within a component is
-			# distinct from a literal `/` separating two components.
+			# Paths compare by their exact encoded representation.
 			def <=>(other)
 				return nil unless other.is_a?(Path)
 				
-				components <=> other.components
+				encoded <=> other.encoded
 			end
 			
 			# @parameter other [Object] The value to compare with this path.
-			# @returns [Boolean] Whether both paths have the same decoded components.
+			# @returns [Boolean] Whether both paths have the same encoded representation.
 			def ==(other)
-				other.is_a?(Path) && components == other.components
+				eql?(other)
 			end
 			
-			alias eql? ==
+			# Compare this path with another path using exact encoded string identity.
+			# @parameter other [Object] The value to compare with this path.
+			# @returns [Boolean] Whether both paths have equal encoded strings.
+			def eql?(other)
+				other.is_a?(Path) && encoded.eql?(other.encoded)
+			end
 			
-			# @returns [Integer] A hash derived from the decoded components.
+			# @returns [Integer] A hash derived from the exact encoded representation.
 			def hash
-				components.hash
+				encoded.hash
 			end
-			
-			FILESYSTEM_ENCODING = ::Encoding.find("filesystem")
-			FILESYSTEM_INVALID_PATTERN = Regexp.union(["\0", File::SEPARATOR, File::ALT_SEPARATOR].compact)
-			private_constant :FILESYSTEM_ENCODING, :FILESYSTEM_INVALID_PATTERN
 			
 			# Convert a URL path to a local file system path.
 			#
 			# Each decoded URL component must map to exactly one local path component. Components
 			# containing NUL or a platform path separator cannot be represented and are rejected.
 			#
-			# @parameter encoding [Encoding] The target file system encoding.
+			# @parameter encoding [Object] An encoding which maps URL segments to system path components.
 			# @returns [String] The local file system path.
+			# @raises [ArgumentError] If a URL segment cannot map to one local filesystem component.
 			#
 			# This conversion does not simplify `.` or `..` components or establish containment
 			# beneath an application root. Simplify and apply the application's containment
 			# policy before using a path from an untrusted source.
-			def local_path(encoding: FILESYSTEM_ENCODING)
-				components = self.components.map do |component|
-					unless component.valid_encoding?
-						raise ArgumentError, "Path has invalid encoding!"
-					end
-					
-					if FILESYSTEM_INVALID_PATTERN.match?(component)
-						raise ArgumentError, "Path contains invalid characters!"
-					end
-					
-					component.encode(encoding)
-				end
-				
-				return File.join(*components)
-			rescue ::Encoding::InvalidByteSequenceError, ::Encoding::UndefinedConversionError
-				raise ArgumentError, "Path could not be converted to a local path!"
+			def local_path(encoding: Encoding::System)
+				File.join(*components(encoding))
 			end
 			
 			alias to_s encoded
 			alias to_str encoded
 			
-			# Simplify this path in place by resolving dot segments and repeated separators.
+			# Simplify this path in place by resolving literal or percent-encoded dot segments and repeated separators.
 			#
 			# @returns [Path | Nil] This path when changed, otherwise `nil`.
 			def simplify!
@@ -248,22 +251,22 @@ module Protocol
 				return nil if simplified.equal?(self)
 				
 				@encoded = simplified.encoded
-				@components = simplified.components
+				@segments = simplified.segments
 				
 				return self
 			end
 			
-			# Return a canonical path by resolving dot segments and repeated separators.
+			# Return a canonical path by resolving literal or percent-encoded dot segments and repeated separators.
 			#
 			# Absolute paths do not retain parent components above the root. Relative paths
 			# retain leading parent components which cannot be resolved locally.
 			#
 			# @returns [Path] The simplified path, or this path if already canonical.
 			def simplify
-				components = simplify_components
-				return self unless components
+				segments = simplify_segments
+				return self unless segments
 				
-				return self.class.new(nil, components)
+				return self.class.new(nil, segments)
 			end
 			
 			# Resolve another path relative to this path.
@@ -280,25 +283,25 @@ module Protocol
 					return simplify ? other.simplify : other
 				end
 				
-				components = self.components.dup
+				segments = self.segments.dup
 				
 				# RFC2396 Section 5.2:
 				# 6) a) All but the last segment of the base URI's path component is
 				# copied to the buffer.  In other words, any characters after the
 				# last (right-most) slash character, if any, are excluded.
-				if pop and components.last != ".."
-					components.pop
-				elsif components.last == ""
-					components.pop
+				if pop and dot_segment(segments.last) != ".."
+					segments.pop
+				elsif segments.last == ""
+					segments.pop
 				end
 				
-				components.concat(other.components)
+				segments.concat(other.segments)
 				
 				if simplify
-					simplify_components!(components)
+					simplify_segments!(segments)
 				end
 				
-				return Path.new(nil, components)
+				return Path.new(nil, segments)
 			end
 			
 			# Calculate this path relative to another path.
@@ -306,108 +309,126 @@ module Protocol
 			# @parameter from [String | Array(String) | Path] The source path.
 			# @returns [Path] The relative path from `from` to this path.
 			def relative(from)
-				target_components = self.components
-				from_components = Path[from].components
+				target_segments = self.segments
+				from_segments = Path[from].segments
 				
 				# Remove the last component from 'from' to get the directory
-				from_components = from_components[0...-1] if from_components.size > 0
+				from_segments = from_segments[0...-1] if from_segments.size > 0
 				
 				# Find the common prefix
 				common_length = 0
-				[target_components.size, from_components.size].min.times do |i|
-					break if target_components[i] != from_components[i]
+				[target_segments.size, from_segments.size].min.times do |i|
+					break if target_segments[i] != from_segments[i]
 					common_length = i + 1
 				end
 				
 				# Calculate how many levels to go up
-				up_levels = from_components.size - common_length
+				up_levels = from_segments.size - common_length
 				
-				# Build the relative path components
-				relative_components = [".."] * up_levels + target_components[common_length..-1]
+				# Build the relative path segments
+				relative_segments = [".."] * up_levels + target_segments[common_length..-1]
 				
-				# We know that all path components should be frozen:
-				return Path.new(nil, relative_components.freeze)
+				return Path.new(nil, relative_segments)
 			end
 			
 			private
 			
-			# Find the first component which requires simplification.
-			def simplification_index(components)
-				absolute = components.first == ""
-				regular_component = false
-				last_index = components.size - 1
+			# Identify dot segments, including percent-encoded spellings. RFC 3986 treats
+			# percent-encoded unreserved characters as equivalent to their literal forms;
+			# the WHATWG URL Standard explicitly recognizes `%2e`, `.%2e`, `%2e.`, and
+			# `%2e%2e` as dot segments, case-insensitively.
+			#
+			# This classification does not decode or rewrite the stored encoded segment.
+			# Paths retain their exact encoded representation unless a structural operation
+			# removes the segment. General percent-encoding normalization, such as decoding
+			# other unreserved characters or uppercasing hexadecimal digits, must be an
+			# explicit operation rather than part of lossless path storage or simplification.
+			def dot_segment(segment)
+				return nil unless segment
+				return "." if segment.match?(/\A(?:\.|%2e)\z/i)
+				return ".." if segment.match?(/\A(?:\.|%2e){2}\z/i)
+			end
+			
+			# Find the first encoded segment which requires simplification.
+			def simplification_index(segments)
+				absolute = segments.first == ""
+				regular_segment = false
+				last_index = segments.size - 1
 				
-				components.each_with_index do |component, index|
-					if component == "."
+				segments.each_with_index do |segment, index|
+					dot = dot_segment(segment)
+					
+					if dot == "."
 						return index
-					elsif component == ""
+					elsif segment == ""
 						# Leading and trailing empty components are significant.
 						return index if index > 0 && index < last_index
-					elsif component == ".."
+					elsif dot == ".."
 						# Absolute paths cannot retain parent components. Relative paths
 						# can retain them only before the first regular component.
-						return index if absolute || regular_component
+						return index if absolute || regular_segment
 					else
-						regular_component = true
+						regular_segment = true
 					end
 				end
 				
 				return nil
 			end
 			
-			# Return simplified components, or nil if they are already canonical.
-			def simplify_components
-				components = self.components
-				return nil unless start_index = simplification_index(components)
+			# Return simplified encoded segments, or nil if they are already canonical.
+			def simplify_segments
+				segments = self.segments
+				return nil unless start_index = simplification_index(segments)
 				
-				components = components.dup
-				simplify_components!(components, start_index)
+				segments = segments.dup
+				simplify_segments!(segments, start_index)
 				
-				return components
+				return segments
 			end
 			
-			# Simplify the given components in place.
-			def simplify_components!(components, start_index = nil)
-				start_index ||= simplification_index(components)
+			# Simplify the given encoded segments in place.
+			def simplify_segments!(segments, start_index = nil)
+				start_index ||= simplification_index(segments)
 				return nil unless start_index
 				
 				offset = start_index
 				index = start_index
-				last_index = components.size - 1
+				last_index = segments.size - 1
 				
 				while index <= last_index
-					component = components[index]
+					segment = segments[index]
+					dot = dot_segment(segment)
 					
-					if component == "."
+					if dot == "."
 						# A trailing dot denotes a directory.
 						if index == last_index
-							components[offset] = ""
+							segments[offset] = ""
 							offset += 1
 						end
-					elsif component == "" && index != last_index
+					elsif segment == "" && index != last_index
 						# Collapse repeated separators.
-					elsif component == ".." && offset > 0 && components[offset - 1] != ".."
+					elsif dot == ".." && offset > 0 && dot_segment(segments[offset - 1]) != ".."
 						# Pop a component, but never pop the absolute-path root.
-						offset -= 1 if components[offset - 1] != ""
+						offset -= 1 if segments[offset - 1] != ""
 						
 						# A trailing parent reference also denotes a directory.
 						if index == last_index
-							components[offset] = ""
+							segments[offset] = ""
 							offset += 1
 						end
 					else
-						components[offset] = component if offset < index
+						segments[offset] = segment if offset < index
 						offset += 1
 					end
 					
 					index += 1
 				end
 				
-				if offset < components.size
-					components[offset, components.size - offset] = EMPTY_COMPONENTS
+				if offset < segments.size
+					segments[offset, segments.size - offset] = EMPTY_SEGMENTS
 				end
 				
-				return components
+				return segments
 			end
 		end
 	end

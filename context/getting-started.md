@@ -90,17 +90,29 @@ result.to_s  # => "https://example.com/completely/different/path"
 
 The {ruby Protocol::URL::Path} class provides powerful utilities for working with URL paths:
 
-### Encoded Paths and Components
+### Encoded Paths, Segments, and Components
 
 ``` ruby
-# Decode an encoded path into components:
+# Preserve the encoded path and its encoded segments:
 path = Protocol::URL::Path["/a/b%2Fc"]
+path.segments    # => ["", "a", "b%2Fc"]
+
+# Decode components explicitly (using Protocol::URL::Encoding by default):
 path.components  # => ["", "a", "b/c"]
 
-# Encode decoded components without losing their boundaries:
-path = Protocol::URL::Path[["", "a", "b/c"]]
+# An array passed to Path[] contains encoded segments:
+path = Protocol::URL::Path[["", "a", "b%2Fc"]]
+path.to_s  # => "/a/b%2Fc"
+
+# Construct a path from decoded components without losing their boundaries:
+path = Protocol::URL::Path.for(["", "a", "b/c"])
 path.to_s  # => "/a/b%2Fc"
 ```
+
+Strings and arrays passed to `Path[]` are encoded URL syntax. `segments` exposes
+that lossless representation for structural operations, while `components`
+crosses the decoding boundary and may depend on the selected encoding. Use
+`Path.for` when inserting decoded application values into a URL.
 
 ### Inspecting Paths
 
@@ -115,7 +127,8 @@ path.parent(2).to_s              # => "/"
 
 ### Simplifying Paths
 
-Remove dot segments (`.` and `..`) from paths:
+Remove literal or percent-encoded dot segments (`.`, `..`, `%2E`, and equivalent
+mixed spellings) from paths without decoding retained segments:
 
 ``` ruby
 # Simplify a path:
@@ -177,7 +190,12 @@ Protocol::URL::Path["/folder/safe%2Fname/file.txt"].local_path
 # Raises ArgumentError.
 ```
 
-`local_path` enforces a one-to-one mapping between URL components and file-system components: an encoded separator such as `%2F` cannot become an extra file-system boundary. It deliberately does not simplify `.` or `..`, because leading parent components are meaningful in relative paths. For paths from an untrusted source, establish the URL-path policy before conversion:
+`local_path` decodes with `Protocol::URL::Encoding::System` by default. It
+enforces a one-to-one mapping between URL components and file-system components:
+an encoded separator such as `%2F` cannot become an extra file-system boundary.
+It deliberately does not simplify `.` or `..`, because leading parent
+components are meaningful in relative paths. For paths from an untrusted
+source, establish the URL-path policy before conversion:
 
 ``` ruby
 path = Protocol::URL::Path[encoded_request_path]
@@ -211,7 +229,7 @@ The library handles URL encoding automatically for path components:
 require "protocol/url/encoding"
 
 # Encode decoded components without losing separator boundaries:
-escaped = Protocol::URL::Path[["", "path", "with spaces", "file.html"]].to_s
+escaped = Protocol::URL::Path.for(["", "path", "with spaces", "file.html"]).to_s
 # => "/path/with%20spaces/file.html"
 
 # Escape query parameters:

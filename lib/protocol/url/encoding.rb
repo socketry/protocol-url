@@ -29,6 +29,7 @@ module Protocol
 			#
 			# @parameter string [String] The string to unescape.
 			# @returns [String] The unescaped string.
+			# @raises [ArgumentError] If the string contains malformed percent encoding.
 			#
 			# @example Unescape spaces and special characters.
 			# 	Encoding.unescape("hello%20world%21")
@@ -38,9 +39,61 @@ module Protocol
 			# 	Encoding.unescape("caf%C3%A9")
 			# 	# => "café"
 			def self.unescape(string, encoding = string.encoding)
-				string.b.gsub(/%(\h\h)/) do |hex|
-					Integer($1, 16).chr
+				string.b.gsub(/%([0-9A-Fa-f]{2})?/) do
+					unless hexadecimal = $1
+						raise ArgumentError, "String contains malformed percent encoding!"
+					end
+					
+					Integer(hexadecimal, 16).chr
 				end.force_encoding(encoding)
+			end
+			
+			# Maps individual URL path segments to and from local filesystem components.
+			#
+			# Unlike generic URL decoding, this encoding rejects values which would turn one
+			# URL segment into multiple local path components.
+			module System
+				ENCODING = ::Encoding.find("filesystem")
+				INVALID_CHARACTER_PATTERN = Regexp.union(["\0", File::SEPARATOR, File::ALT_SEPARATOR].compact)
+				
+				# Encode one local filesystem component as one URL path segment.
+				# @parameter component [String] The local filesystem component.
+				# @returns [String] The encoded URL segment.
+				# @raises [ArgumentError] If the component cannot be converted or contains a system path separator.
+				def self.escape(component)
+					validate(component)
+					Encoding.escape(transcode(component, ::Encoding::UTF_8))
+				end
+				
+				# Decode one URL path segment as one local filesystem component.
+				# @parameter segment [String] The encoded URL segment.
+				# @returns [String] The local filesystem component.
+				# @raises [ArgumentError] If the segment cannot map to one local filesystem component.
+				def self.unescape(segment)
+					component = Encoding.unescape(segment, ::Encoding::UTF_8)
+					validate(component)
+					transcode(component, ENCODING)
+				end
+				
+				# Transcode a path component to the requested character encoding.
+				def self.transcode(component, encoding)
+					component.encode(encoding)
+				rescue ::Encoding::InvalidByteSequenceError, ::Encoding::UndefinedConversionError
+					raise ArgumentError, "Path component could not be transcoded!"
+				end
+				
+				# Validate that a string can represent exactly one local filesystem component.
+				def self.validate(component)
+					unless component.valid_encoding?
+						raise ArgumentError, "Path component has invalid encoding!"
+					end
+					
+					if INVALID_CHARACTER_PATTERN.match?(component)
+						raise ArgumentError, "Path component contains invalid characters!"
+					end
+				end
+				private_class_method :transcode, :validate
+				private_constant :ENCODING, :INVALID_CHARACTER_PATTERN
 			end
 			
 			# Matches characters that are not allowed in a URI fragment. According to RFC 3986 Section 3.5, a valid fragment consists of pchar / "/" / "?" characters.
