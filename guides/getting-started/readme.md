@@ -18,7 +18,7 @@ $ bundle add protocol-url
 - {ruby Protocol::URL::Relative} represents relative URLs without scheme or authority (e.g., `/path` or `path/to/file`)
 - {ruby Protocol::URL::Reference} extends relative URLs with query parameters and fragments
 
-Additionally, the {ruby Protocol::URL::Path} module provides low-level utilities for path manipulation including splitting, joining, simplifying, and expanding paths according to RFC 3986 rules.
+Additionally, the {ruby Protocol::URL::Path} class preserves encoded path structure while exposing decoded components, and provides utilities for path manipulation according to RFC 3986 rules.
 
 ## Usage
 
@@ -31,7 +31,7 @@ require "protocol/url"
 url = Protocol::URL["https://api.example.com:8080/v1/users?page=2#results"]
 url.scheme      # => "https"
 url.authority   # => "api.example.com:8080"
-url.path        # => "/v1/users"
+url.path.to_s   # => "/v1/users"
 url.query       # => "page=2"
 url.fragment    # => "results"
 ```
@@ -41,11 +41,11 @@ Parse relative URLs and references:
 ``` ruby
 # Parse a relative URL:
 relative = Protocol::URL["/api/v1/users"]
-relative.path   # => "/api/v1/users"
+relative.path.to_s  # => "/api/v1/users"
 
 # Parse a reference with query and fragment:
 reference = Protocol::URL["/search?q=ruby#top"]
-reference.path      # => "/search"
+reference.path.to_s # => "/search"
 reference.query     # => "q=ruby"
 reference.fragment  # => "top"
 ```
@@ -88,87 +88,124 @@ result.to_s  # => "https://example.com/completely/different/path"
 
 ## Path Manipulation
 
-The {ruby Protocol::URL::Path} module provides powerful utilities for working with URL paths:
+The {ruby Protocol::URL::Path} class provides powerful utilities for working with URL paths:
 
-### Splitting and Joining Paths
+### Encoded Paths, Segments, and Components
 
 ``` ruby
-# Split paths into components:
-Protocol::URL::Path.split("/a/b/c")     # => ["", "a", "b", "c"]
-Protocol::URL::Path.split("a/b/c")      # => ["a", "b", "c"]
-Protocol::URL::Path.split("a/b/c/")     # => ["a", "b", "c", ""]
+# Preserve the encoded path and its encoded segments:
+path = Protocol::URL::Path["/a/b%2Fc"]
+path.segments    # => ["", "a", "b%2Fc"]
 
-# Join components back into paths:
-Protocol::URL::Path.join(["", "a", "b", "c"])  # => "/a/b/c"
-Protocol::URL::Path.join(["a", "b", "c"])      # => "a/b/c"
+# Decode components explicitly (using Protocol::URL::Encoding by default):
+path.components  # => ["", "a", "b/c"]
+
+# An array passed to Path[] contains encoded segments:
+path = Protocol::URL::Path[["", "a", "b%2Fc"]]
+path.to_s  # => "/a/b%2Fc"
+
+# Construct a path from decoded components without losing their boundaries:
+path = Protocol::URL::Path.for(["", "a", "b/c"])
+path.to_s  # => "/a/b%2Fc"
+```
+
+Strings and arrays passed to `Path[]` are encoded URL syntax. `segments` exposes
+that lossless representation for structural operations, while `components`
+crosses the decoding boundary and may depend on the selected encoding. Use
+`Path.for` when inserting decoded application values into a URL.
+
+### Inspecting Paths
+
+``` ruby
+path = Protocol::URL::Path["/releases/archive.tar.gz"]
+
+path.basename                    # => "archive.tar.gz"
+path.basename(extension: false)  # => "archive.tar"
+path.parent.to_s                 # => "/releases"
+path.parent(2).to_s              # => "/"
 ```
 
 ### Simplifying Paths
 
-Remove dot segments (`.` and `..`) from paths:
+Remove literal or percent-encoded dot segments (`.`, `..`, `%2E`, and equivalent
+mixed spellings) from paths without decoding retained segments:
 
 ``` ruby
 # Simplify a path:
-components = ["a", "b", "..", "c", ".", "d"]
-simplified = Protocol::URL::Path.simplify(components)
+path = Protocol::URL::Path[["a", "b", "..", "c", ".", "d"]]
+path.simplify.components
 # => ["a", "c", "d"]
 
 # Works with absolute paths:
-components = ["", "a", "b", "..", "..", "c"]
-simplified = Protocol::URL::Path.simplify(components)
+path = Protocol::URL::Path[["", "a", "b", "..", "..", "c"]]
+path.simplify.components
 # => ["", "c"]
 ```
 
-### Expanding Paths
+### Joining Paths
 
 Merge two paths according to RFC 3986 rules:
 
 ``` ruby
-# Expand a relative path against a base:
-result = Protocol::URL::Path.expand("/a/b/c", "../d")
-# => "/a/b/d"
+# Join a relative path against a base:
+result = Protocol::URL::Path["/a/b/c"].join("../d").to_s
+# => "/a/d"
 
 # Handle complex relative paths:
-result = Protocol::URL::Path.expand("/a/b/c/d", "../../e/f")
+result = Protocol::URL::Path["/a/b/c/d"].join("../../e/f").to_s
 # => "/a/b/e/f"
 
 # Absolute relative paths replace the base:
-result = Protocol::URL::Path.expand("/a/b/c", "/x/y/z")
+result = Protocol::URL::Path["/a/b/c"].join("/x/y/z").to_s
 # => "/x/y/z"
 ```
 
-The `expand` method has an optional `pop` parameter (default: `true`) that controls whether the last component of the base path is removed before merging:
+The `join` method has an optional `pop` parameter (default: `true`) that controls whether the last component of the base path is removed before merging:
 
 ``` ruby
 # With pop=true (default), behaves like URI resolution:
-Protocol::URL::Path.expand("/a/b/file.html", "other.html")
+Protocol::URL::Path["/a/b/file.html"].join("other.html").to_s
 # => "/a/b/other.html"
 
 # With pop=false, treats base as a directory:
-Protocol::URL::Path.expand("/a/b/file.html", "other.html", false)
+Protocol::URL::Path["/a/b/file.html"].join("other.html", pop: false).to_s
 # => "/a/b/file.html/other.html"
 ```
 
 ### Converting to Local File System Paths
 
-Convert URL paths to local file system paths safely:
+Resolve URL paths beneath a required local filesystem root:
 
 ``` ruby
-# Convert URL path to local file system path:
-Protocol::URL::Path.to_local_path("/documents/report.pdf")
-# => "/documents/report.pdf"
+root = "/srv/public"
+
+# An absolute URL path is relative to the supplied filesystem root:
+Protocol::URL::Path["/documents/report.pdf"].local_path(root)
+# => "/srv/public/documents/report.pdf"
 
 # Handles percent-encoded characters:
-Protocol::URL::Path.to_local_path("/files/My%20Document.txt")
-# => "/files/My Document.txt"
+Protocol::URL::Path["/files/My%20Document.txt"].local_path(root)
+# => "/srv/public/files/My Document.txt"
 
-# Security: Preserves percent-encoded path separators
-# This prevents directory traversal attacks:
-Protocol::URL::Path.to_local_path("/folder/safe%2Fname/file.txt")
-# => "/folder/safe%2Fname/file.txt"
-# %2F (/) and %5C (\) are NOT decoded, preventing them from creating
-# additional path components in the file system
+# Encoded separators which cannot map to one local component are rejected:
+Protocol::URL::Path["/folder/safe%2Fname/file.txt"].local_path(root)
+# Raises ArgumentError.
+
+# Parent traversal beyond the supplied root is rejected:
+Protocol::URL::Path["/../../etc/passwd"].local_path(root)
+# Raises ArgumentError.
 ```
+
+`local_path` decodes each segment exactly once with
+`Protocol::URL::Encoding::System`, enforces a one-to-one mapping between URL and
+filesystem components, resolves `.` and `..` lexically, and returns an expanded
+path only when it remains beneath the supplied root.
+
+This is lexical containment. It does not resolve symbolic links or prevent a
+race between validating the pathname and opening it. The filesystem tree
+beneath the root must be trusted against attacker-controlled symlinks; serving
+an attacker-writable tree requires an operation-oriented interface with an
+explicit symlink policy.
 
 ## Working with References
 
@@ -193,8 +230,8 @@ The library handles URL encoding automatically for path components:
 ``` ruby
 require "protocol/url/encoding"
 
-# Escape path components (preserves slashes):
-escaped = Protocol::URL::Encoding.escape_path("/path/with spaces/file.html")
+# Encode decoded components without losing separator boundaries:
+escaped = Protocol::URL::Path.for(["", "path", "with spaces", "file.html"]).to_s
 # => "/path/with%20spaces/file.html"
 
 # Escape query parameters:
@@ -250,8 +287,11 @@ Clean up URLs by simplifying paths:
 # URL with redundant path segments:
 messy = Protocol::URL["https://example.com/a/b/../c/./d"]
 
-# The path is automatically simplified:
-messy.path  # => "/a/c/d"
+# Parsing preserves the original path until simplification is requested:
+messy.path.to_s  # => "/a/b/../c/./d"
+
+messy.normalize!
+messy.path.to_s  # => "/a/c/d"
 messy.to_s  # => "https://example.com/a/c/d"
 ```
 
@@ -266,9 +306,9 @@ messy.to_s  # => "https://example.com/a/c/d"
 ### Path Manipulation
 
 When manipulating paths:
-- Use {ruby Protocol::URL::Path.expand} for combining paths
-- Use {ruby Protocol::URL::Path.simplify} to remove dot segments
-- Remember that `expand` pops the last component by default (RFC 3986 behavior)
+- Use {ruby Protocol::URL::Path#join} for combining paths
+- Use {ruby Protocol::URL::Path#simplify} to remove dot segments
+- Remember that `join` pops the last component by default (RFC 3986 behavior)
 
 ### Encoding
 
@@ -278,17 +318,17 @@ When manipulating paths:
 
 ## Common Pitfalls
 
-### Pop Behavior in Path Expansion
+### Pop Behavior When Joining Paths
 
-The `expand` method pops the last path component by default to match RFC 3986 URI resolution:
+The `join` method pops the last path component by default to match RFC 3986 URI resolution:
 
 ``` ruby
 # This might be surprising:
-Protocol::URL::Path.expand("/api/users", "groups")
+Protocol::URL::Path["/api/users"].join("groups").to_s
 # => "/api/groups" (not "/api/users/groups")
 
 # To prevent popping, use pop=false:
-Protocol::URL::Path.expand("/api/users", "groups", false)
+Protocol::URL::Path["/api/users"].join("groups", pop: false).to_s
 # => "/api/users/groups"
 ```
 
@@ -308,10 +348,10 @@ Trailing slashes are preserved and have semantic meaning:
 
 ``` ruby
 # Directory (trailing slash):
-Protocol::URL::Path.expand("/docs/", "page.html")
+Protocol::URL::Path["/docs/"].join("page.html").to_s
 # => "/docs/page.html"
 
 # File (no trailing slash):
-Protocol::URL::Path.expand("/docs", "page.html") 
+Protocol::URL::Path["/docs"].join("page.html").to_s
 # => "/page.html" (pops "docs")
 ```

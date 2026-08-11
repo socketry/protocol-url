@@ -10,7 +10,7 @@ describe Protocol::URL::Absolute do
 		url = Protocol::URL::Absolute.new("https", "cdn.example.com", "/npm/")
 		expect(url.scheme).to be == "https"
 		expect(url.authority).to be == "cdn.example.com"
-		expect(url.path).to be == "/npm/"
+		expect(url.path).to be == Protocol::URL::Path["/npm/"]
 		expect(url.to_s).to be == "https://cdn.example.com/npm/"
 	end
 	
@@ -20,6 +20,21 @@ describe Protocol::URL::Absolute do
 		result = base + relative
 		expect(result).to be_a(Protocol::URL::Absolute)
 		expect(result.to_s).to be == "https://cdn.example.com/npm/lit@2.7.5/index.js"
+	end
+	
+	with "#freeze" do
+		it "freezes the scheme and authority" do
+			scheme = +"https"
+			authority = +"example.com"
+			url = Protocol::URL::Absolute.new(scheme, authority, "/")
+			
+			expect(url.freeze).to be_equal(url)
+			expect(url).to be(:frozen?)
+			expect(scheme).to be(:frozen?)
+			expect(authority).to be(:frozen?)
+			expect(url.path).to be(:frozen?)
+			expect(url.freeze).to be_equal(url)
+		end
 	end
 	
 	describe "fragment handling" do
@@ -57,14 +72,14 @@ describe Protocol::URL::Absolute do
 			result = base + other
 			expect(result.scheme).to be == "https"
 			expect(result.authority).to be == "cdn.example.com"
-			expect(result.path).to be == "/lib.js"
+			expect(result.path).to be == Protocol::URL::Path["/lib.js"]
 		end
 		
 		it "handles Reference argument" do
 			base = Protocol::URL::Absolute.new("https", "example.com", "/path")
 			reference = Protocol::URL::Reference.new("other.html", nil, nil, nil)
 			result = base + reference
-			expect(result.path).to be == "/other.html"
+			expect(result.path).to be == Protocol::URL::Path["/other.html"]
 		end
 		
 		it "raises error for invalid type" do
@@ -115,7 +130,7 @@ describe Protocol::URL::Absolute do
 		it "merges path" do
 			base = Protocol::URL::Absolute.new("https", "example.com", "/api")
 			updated = base.with(path: "users")
-			expect(updated.path).to be == "/users"
+			expect(updated.path).to be == Protocol::URL::Path["/users"]
 		end
 		
 		it "updates query" do
@@ -143,7 +158,7 @@ describe Protocol::URL::Absolute do
 	with "#to_ary" do
 		it "returns array representation" do
 			url = Protocol::URL::Absolute.new("https", "example.com", "/path", "q=test", "section")
-			expect(url.to_ary).to be == ["https", "example.com", "/path", "q=test", "section"]
+			expect(url.to_ary).to be == ["https", "example.com", Protocol::URL::Path["/path"], "q=test", "section"]
 		end
 	end
 	
@@ -157,21 +172,23 @@ describe Protocol::URL::Absolute do
 		end
 	end
 	
-	with "#to_local_path" do
+	with "#local_path" do
+		let(:root) {File.expand_path("public", Dir.pwd)}
+		
 		it "converts path to local file system path" do
 			url = Protocol::URL::Absolute.new("https", "example.com", "/documents/report.pdf")
-			expect(url.to_local_path).to be == "/documents/report.pdf"
+			expect(url.local_path(root)).to be == File.join(root, "documents", "report.pdf")
 		end
 		
 		it "handles percent-encoded characters" do
 			url = Protocol::URL::Absolute.new("https", "example.com", "/files/My%20Document.txt")
-			expect(url.to_local_path).to be == "/files/My Document.txt"
+			expect(url.local_path(root)).to be == File.join(root, "files", "My Document.txt")
 		end
 		
 		it "only converts the path component" do
 			url = Protocol::URL::Absolute.new("https", "example.com", "/api/users", "page=2", "results")
 			# Query and fragment are not included in local path
-			expect(url.to_local_path).to be == "/api/users"
+			expect(url.local_path(root)).to be == File.join(root, "api", "users")
 		end
 	end
 end

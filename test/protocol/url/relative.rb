@@ -9,7 +9,7 @@ require "json"
 describe Protocol::URL::Relative do
 	it "creates a relative URL" do
 		url = Protocol::URL::Relative.new("/_components/")
-		expect(url.path).to be == "/_components/"
+		expect(url.path).to be == Protocol::URL::Path["/_components/"]
 	end
 	
 	it "concatenates with another relative path" do
@@ -27,6 +27,26 @@ describe Protocol::URL::Relative do
 		expect(result.to_s).to be == "baz/file.txt"
 	end
 	
+	with "#freeze" do
+		it "freezes the URL and its direct components" do
+			path = Protocol::URL::Path["/a/../b"]
+			query = +"q=test"
+			fragment = +"section"
+			url = Protocol::URL::Relative.new(path, query, fragment)
+			
+			expect(url.freeze).to be_equal(url)
+			expect(url).to be(:frozen?)
+			expect(path).to be(:frozen?)
+			expect(query).to be(:frozen?)
+			expect(fragment).to be(:frozen?)
+			expect(url.freeze).to be_equal(url)
+			
+			expect do
+				path.simplify!
+			end.to raise_exception(FrozenError)
+		end
+	end
+	
 	with "#+" do
 		it "returns Absolute when adding Absolute to Relative" do
 			relative = Protocol::URL::Relative.new("/path")
@@ -38,7 +58,7 @@ describe Protocol::URL::Relative do
 		it "handles String argument" do
 			relative = Protocol::URL::Relative.new("/base/")
 			result = relative + "path.html"
-			expect(result.path).to be == "/base/path.html"
+			expect(result.path).to be == Protocol::URL::Path["/base/path.html"]
 		end
 		
 		it "raises error for invalid type" do
@@ -87,7 +107,7 @@ describe Protocol::URL::Relative do
 		it "updates path" do
 			base = Protocol::URL::Relative.new("/api/users")
 			updated = base.with(path: "groups")
-			expect(updated.path).to be == "/api/groups"
+			expect(updated.path).to be == Protocol::URL::Path["/api/groups"]
 		end
 		
 		it "updates query" do
@@ -113,7 +133,7 @@ describe Protocol::URL::Relative do
 	with "#to_ary" do
 		it "returns array representation" do
 			url = Protocol::URL::Relative.new("/path", "q=test", "section")
-			expect(url.to_ary).to be == ["/path", "q=test", "section"]
+			expect(url.to_ary).to be == [Protocol::URL::Path["/path"], "q=test", "section"]
 		end
 	end
 	
@@ -188,37 +208,37 @@ describe Protocol::URL::Relative do
 		it "removes dot segments" do
 			url = Protocol::URL::Relative.new("/foo/./bar")
 			url.normalize!
-			expect(url.path).to be == "/foo/bar"
+			expect(url.path).to be == Protocol::URL::Path["/foo/bar"]
 		end
 		
 		it "resolves parent directory segments" do
 			url = Protocol::URL::Relative.new("/foo/bar/../baz")
 			url.normalize!
-			expect(url.path).to be == "/foo/baz"
+			expect(url.path).to be == Protocol::URL::Path["/foo/baz"]
 		end
 		
 		it "collapses multiple slashes" do
 			url = Protocol::URL::Relative.new("/foo//bar///baz")
 			url.normalize!
-			expect(url.path).to be == "/foo/bar/baz"
+			expect(url.path).to be == Protocol::URL::Path["/foo/bar/baz"]
 		end
 		
 		it "handles complex paths" do
 			url = Protocol::URL::Relative.new("/foo//bar/./baz/../qux")
 			url.normalize!
-			expect(url.path).to be == "/foo/bar/qux"
+			expect(url.path).to be == Protocol::URL::Path["/foo/bar/qux"]
 		end
 		
 		it "preserves trailing slash" do
 			url = Protocol::URL::Relative.new("/foo/bar/")
 			url.normalize!
-			expect(url.path).to be == "/foo/bar/"
+			expect(url.path).to be == Protocol::URL::Path["/foo/bar/"]
 		end
 		
 		it "handles relative paths" do
 			url = Protocol::URL::Relative.new("foo/bar/../baz")
 			url.normalize!
-			expect(url.path).to be == "foo/baz"
+			expect(url.path).to be == Protocol::URL::Path["foo/baz"]
 		end
 		
 		it "returns self" do
@@ -230,31 +250,35 @@ describe Protocol::URL::Relative do
 		it "preserves query and fragment" do
 			url = Protocol::URL::Relative.new("/foo//bar", "q=test", "section")
 			url.normalize!
-			expect(url.path).to be == "/foo/bar"
+			expect(url.path).to be == Protocol::URL::Path["/foo/bar"]
 			expect(url.query).to be == "q=test"
 			expect(url.fragment).to be == "section"
 		end
 	end
 	
-	with "#to_local_path" do
+	with "#local_path" do
+		let(:root) {File.expand_path("public", Dir.pwd)}
+		
 		it "converts path to local file system path" do
 			url = Protocol::URL::Relative.new("/documents/report.pdf")
-			expect(url.to_local_path).to be == "/documents/report.pdf"
+			expect(url.local_path(root)).to be == File.join(root, "documents", "report.pdf")
 		end
 		
 		it "handles percent-encoded characters" do
 			url = Protocol::URL::Relative.new("/files/My%20Document.txt")
-			expect(url.to_local_path).to be == "/files/My Document.txt"
+			expect(url.local_path(root)).to be == File.join(root, "files", "My Document.txt")
 		end
 		
 		it "handles unicode characters" do
 			url = Protocol::URL::Relative.new("/files/%E2%9D%A4%EF%B8%8F.txt")
-			expect(url.to_local_path).to be == "/files/❤️.txt"
+			expect(url.local_path(root)).to be == File.join(root, "files", "❤️.txt")
 		end
 		
-		it "preserves encoded path separators" do
+		it "rejects encoded path separators" do
 			url = Protocol::URL::Relative.new("/safe%2Fname/file.txt")
-			expect(url.to_local_path).to be == "/safe%2Fname/file.txt"
+			expect do
+				url.local_path(root)
+			end.to raise_exception(ArgumentError, message: be =~ /invalid characters/)
 		end
 	end
 end

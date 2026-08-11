@@ -40,12 +40,25 @@ describe Protocol::URL::Reference do
 		it "can remove relative parts" do
 			expect(absolute + up).to be == subject["/baz"]
 		end
+		
+		it "can resolve a relative path from a path with an encoded separator" do
+			reference = subject.parse("/a/b%2Fc") + "../d"
+			expect(reference.to_s).to be == "/d"
+		end
+		
+		it "preserves a reserved escape while resolving a relative path" do
+			reference = subject.parse("a%3Ab/c") + "d"
+			
+			expect(reference.to_s).to be == "a%3Ab/d"
+		end
 	end
 	
 	with "#freeze" do
-		it "can freeze reference" do
+		it "freezes the reference and its direct components" do
 			expect(reference.freeze).to be_equal(reference)
 			expect(reference).to be(:frozen?)
+			expect(reference.path).to be(:frozen?)
+			expect(reference.parameters).to be(:frozen?)
 		end
 	end
 	
@@ -63,18 +76,18 @@ describe Protocol::URL::Reference do
 		it "accepts Relative objects" do
 			relative = Protocol::URL::Relative.new("/path", "q=test", "frag")
 			ref = subject[relative]
-			expect(ref.path).to be == "/path"
+			expect(ref.path).to be == Protocol::URL::Path["/path"]
 			expect(ref.query).to be == "q=test"
 			expect(ref.fragment).to be == "frag"
 		end
 		
-		it "unescapes encoded paths from Relative objects" do
-			# Relative stores encoded values, Reference should store unescaped
+		it "exposes decoded path components from Relative objects" do
+			# Relative and Reference share the Path value and its component boundaries.
 			relative = Protocol::URL::Relative.new("/path%20with%20spaces", "q=test", "frag%20ment")
 			ref = subject[relative]
 			
-			# Reference should unescape the path and fragment
-			expect(ref.path).to be == "/path with spaces"
+			# Path components and the fragment can be accessed decoded.
+			expect(ref.path.components).to be == ["", "path with spaces"]
 			expect(ref.fragment).to be == "frag ment"
 			
 			# When converted back to string, should be re-encoded
@@ -86,8 +99,8 @@ describe Protocol::URL::Reference do
 			relative = Protocol::URL::Relative.new("/I/%E2%9D%A4%EF%B8%8F/UNICODE", nil, nil)
 			ref = subject[relative]
 			
-			# Reference should unescape to unicode
-			expect(ref.path).to be == "/I/❤️/UNICODE"
+			# Path components expose decoded Unicode.
+			expect(ref.path.components).to be == ["", "I", "❤️", "UNICODE"]
 			
 			# When converted back to string, should be re-encoded
 			expect(ref.to_s).to be == "/I/%E2%9D%A4%EF%B8%8F/UNICODE"
@@ -97,21 +110,28 @@ describe Protocol::URL::Reference do
 	with "#with" do
 		it "can nest paths" do
 			reference = subject.new("/foo")
-			expect(reference.path).to be == "/foo"
+			expect(reference.path).to be == Protocol::URL::Path[["", "foo"]]
 			
 			nested_resource = reference.with(path: "bar")
-			expect(nested_resource.path).to be == "/foo/bar"
+			expect(nested_resource.path).to be == Protocol::URL::Path[["", "foo", "bar"]]
 		end
 		
 		it "can update path" do
 			copy = reference.with(path: "foo/bar.html")
-			expect(copy.path).to be == "/foo/bar.html"
+			expect(copy.path).to be == Protocol::URL::Path[["", "foo", "bar.html"]]
+		end
+		
+		it "preserves encoded segments when updating the path" do
+			copy = reference.with(path: "foo%2Fbar")
+			
+			expect(copy.path.segments).to be == ["", "foo%2Fbar"]
+			expect(copy.to_s).to be == "/foo%2Fbar"
 		end
 		
 		it "can append path components" do
 			copy = reference.with(path: "foo/").with(path: "bar/")
 			
-			expect(copy.path).to be == "/foo/bar/"
+			expect(copy.path).to be == Protocol::URL::Path[["", "foo", "bar", ""]]
 		end
 		
 		it "can append empty path components" do
@@ -136,19 +156,19 @@ describe Protocol::URL::Reference do
 			copy = reference.with(parameters: {x: 10}).with(path: "foo")
 			
 			expect(copy.parameters).to be == {x: 10}
-			expect(copy.path).to be == "/foo"
+			expect(copy.path).to be == Protocol::URL::Path[["", "foo"]]
 		end
 		
 		it "can replace path with absolute path" do
 			copy = reference.with(path: "foo").with(path: "/bar")
 			
-			expect(copy.path).to be == "/bar"
+			expect(copy.path).to be == Protocol::URL::Path[["", "bar"]]
 		end
 		
 		it "can replace path with relative path" do
 			copy = reference.with(path: "foo").with(path: "../../bar")
 			
-			expect(copy.path).to be == "/bar"
+			expect(copy.path).to be == Protocol::URL::Path[["", "bar"]]
 		end
 		
 		with "#query" do
@@ -247,13 +267,13 @@ describe Protocol::URL::Reference do
 			it "can compute new relative path" do
 				copy = reference.with(path: "../index.html", pop: true)
 				
-				expect(copy.path).to be == "foo/index.html"
+				expect(copy.path).to be == Protocol::URL::Path[["foo", "index.html"]]
 			end
 			
 			it "can compute relative path with more uplevels" do
 				copy = reference.with(path: "../../../index.html", pop: true)
 				
-				expect(copy.path).to be == "../index.html"
+				expect(copy.path).to be == Protocol::URL::Path[["..", "index.html"]]
 			end
 		end
 	end
@@ -330,7 +350,7 @@ describe Protocol::URL::Reference do
 		end
 	end
 	
-	describe Protocol::URL::Reference.new("I/❤️/UNICODE", nil, nil, {face: "😀"}) do
+	describe Protocol::URL::Reference.new(Protocol::URL::Path.for(["I", "❤️", "UNICODE"]), nil, nil, {face: "😀"}) do
 		it "encodes unicode" do
 			expect(subject.to_s).to be == "I/%E2%9D%A4%EF%B8%8F/UNICODE?face=%F0%9F%98%80"
 		end
@@ -342,7 +362,7 @@ describe Protocol::URL::Reference do
 				ref = Protocol::URL::Reference.parse("path%20with%20spaces?foo=bar&baz=qux#frag%20ment")
 				
 				# Unescaped internally:
-				expect(ref.path).to be == "path with spaces"
+				expect(ref.path.components).to be == ["path with spaces"]
 				expect(ref.fragment).to be == "frag ment"
 				
 				# Query kept as-is:
@@ -353,12 +373,12 @@ describe Protocol::URL::Reference do
 			end
 		end
 		
-		with "new() with unescaped input" do
-			it "accepts unescaped path and fragment" do
-				ref = Protocol::URL::Reference.new("path with spaces", nil, "frag ment")
+		with "new() with explicit path encoding" do
+			it "accepts an encoded path and unescaped fragment" do
+				ref = Protocol::URL::Reference.new("path%20with%20spaces", nil, "frag ment")
 				
-				# Stored unescaped:
-				expect(ref.path).to be == "path with spaces"
+				# The path is decoded explicitly while the fragment is stored unescaped:
+				expect(ref.path.components).to be == ["path with spaces"]
 				expect(ref.fragment).to be == "frag ment"
 				
 				# Encoded on output:
@@ -388,13 +408,11 @@ describe Protocol::URL::Reference do
 				expect(result).to be(:include?, "city=New%20York")
 			end
 			
-			it "handles unicode in path" do
-				ref = Protocol::URL::Reference.new("I/❤️/UNICODE")
+			it "accepts a path constructed from decoded unicode components" do
+				path = Protocol::URL::Path.for(["I", "❤️", "UNICODE"])
+				ref = Protocol::URL::Reference.new(path)
 				
-				# Stored unescaped:
-				expect(ref.path).to be == "I/❤️/UNICODE"
-				
-				# Encoded on output:
+				expect(ref.path.components).to be == ["I", "❤️", "UNICODE"]
 				expect(ref.to_s).to be == "I/%E2%9D%A4%EF%B8%8F/UNICODE"
 			end
 		end
@@ -416,35 +434,34 @@ describe Protocol::URL::Reference do
 		end
 		
 		with "path encoding scenarios" do
-			it "handles unescaped spaces in new()" do
-				# new() expects raw unescaped values
-				ref = Protocol::URL::Reference.new("path with spaces")
-				expect(ref.path).to be == "path with spaces"
+			it "preserves encoded path strings in new()" do
+				ref = Protocol::URL::Reference.new("path%20with%20spaces")
+				
+				expect(ref.path.segments).to be == ["path%20with%20spaces"]
+				expect(ref.path.components).to be == ["path with spaces"]
 				expect(ref.to_s).to be == "path%20with%20spaces"
 			end
 			
-			it "double-encodes if you pass encoded values to new()" do
-				# This is wrong usage, but demonstrates the behavior
-				ref = Protocol::URL::Reference.new("path%20with%20spaces")
+			it "constructs encoded paths from decoded components explicitly" do
+				path = Protocol::URL::Path.for(["path with spaces"])
+				ref = Protocol::URL::Reference.new(path)
 				
-				# Stored as-is (treating %20 as literal characters):
-				expect(ref.path).to be == "path%20with%20spaces"
-				
-				# Gets double-encoded on output:
-				expect(ref.to_s).to be == "path%2520with%2520spaces"
+				expect(ref.path.segments).to be == ["path%20with%20spaces"]
+				expect(ref.to_s).to be == "path%20with%20spaces"
 			end
 			
-			it "handles unicode correctly in new()" do
-				# Unicode is stored raw and encoded on output
-				ref = Protocol::URL::Reference.new("I/❤️/UNICODE")
-				expect(ref.path).to be == "I/❤️/UNICODE"
+			it "constructs unicode paths explicitly" do
+				path = Protocol::URL::Path.for(["I", "❤️", "UNICODE"])
+				ref = Protocol::URL::Reference.new(path)
+				
+				expect(ref.path.components).to be == ["I", "❤️", "UNICODE"]
 				expect(ref.to_s).to be == "I/%E2%9D%A4%EF%B8%8F/UNICODE"
 			end
 			
 			it "use parse() for already-encoded input" do
 				# parse() is the correct method for encoded strings
 				ref = Protocol::URL::Reference.parse("path%20with%20spaces")
-				expect(ref.path).to be == "path with spaces"
+				expect(ref.path.components).to be == ["path with spaces"]
 				expect(ref.to_s).to be == "path%20with%20spaces"
 			end
 		end
@@ -452,19 +469,19 @@ describe Protocol::URL::Reference do
 		with "validation" do
 			it "new() does not validate inputs" do
 				# new() accepts anything - caller is responsible for valid input
-				# It doesn't reject invalid characters, though they will be encoded on output
+				# It does not reject or reinterpret invalid encoded path characters.
 				ref = Protocol::URL::Reference.new("any\r\nvalue", "any query", "any\tfragment")
 				
 				# Values are stored as-is:
-				expect(ref.path).to be == "any\r\nvalue"
+				expect(ref.path.components).to be == ["any\r\nvalue"]
 				expect(ref.query).to be == "any query"
 				expect(ref.fragment).to be == "any\tfragment"
 				
-				# Control characters in path/fragment get encoded, but spaces in query are passed through:
+				# The path and query are passed through, while the decoded fragment is encoded:
 				output = ref.to_s
-				expect(output).to be(:include?, "any query")  # Query passed through
-				expect(output).to be(:include?, "%0D%0A")     # Path control chars encoded
-				expect(output).to be(:include?, "%09")        # Fragment control chars encoded
+				expect(output).to be(:include?, "any\r\nvalue")
+				expect(output).to be(:include?, "any query")
+				expect(output).to be(:include?, "%09")
 			end
 			
 			it "parse() validates and rejects invalid input" do
