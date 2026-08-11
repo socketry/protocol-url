@@ -174,9 +174,9 @@ You can update multiple components at once:
 base = Protocol::URL::Reference.new("/api/users")
 
 modified = base.with(
-		path: "posts",
-		query: "author=john&status=published",
-		fragment: "top"
+	path: "posts",
+	query: "author=john&status=published",
+	fragment: "top"
 )
 modified.to_s  # => "/api/posts?author=john&status=published#top"
 ```

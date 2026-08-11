@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 # Released under the MIT License.
-# Copyright, 2025, by Samuel Williams.
+# Copyright, 2025-2026, by Samuel Williams.
 
 module Protocol
 	module URL
@@ -125,13 +125,13 @@ module Protocol
 			def self.encode(value, prefix = nil)
 				case value
 				when Array
-					return value.map {|v|
+					return value.map do |v|
 						self.encode(v, "#{prefix}[]")
-					}.join("&")
+					end.join("&")
 				when Hash
-					return value.map {|k, v|
+					return value.map do |k, v|
 						self.encode(v, prefix ? "#{prefix}[#{escape(k.to_s)}]" : escape(k.to_s))
-					}.reject(&:empty?).join("&")
+					end.reject(&:empty?).join("&")
 				when nil
 					return prefix
 				else

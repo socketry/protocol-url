@@ -16,11 +16,13 @@ Gem::Specification.new do |spec|
 	spec.homepage = "https://github.com/socketry/protocol-url"
 	
 	spec.metadata = {
-		"source_code_uri" => "https://github.com/socketry/protocol-url.git",
+		"bug_tracker_uri" => "https://github.com/socketry/protocol-url/issues",
+		"changelog_uri" => "https://github.com/socketry/protocol-url/blob/main/releases.md",
 		"documentation_uri" => "https://socketry.github.io/protocol-url/",
+		"source_code_uri" => "https://github.com/socketry/protocol-url.git",
 	}
 	
 	spec.files = Dir.glob(["{lib}/**/*", "*.md"], File::FNM_DOTMATCH, base: __dir__)
 	
-	spec.required_ruby_version = ">= 3.2"
+	spec.required_ruby_version = ">= 3.3"
 end
