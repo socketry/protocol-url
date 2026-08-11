@@ -33,6 +33,19 @@ describe Protocol::URL::Path do
 			end.to raise_exception(ArgumentError, message: be == "Path contains an invalid encoded segment!")
 		end
 		
+		it "does not retain mutable encoded segments" do
+			segment = +"a"
+			segments = [segment]
+			path = Protocol::URL::Path[segments]
+			
+			segment.replace("b")
+			segments.clear
+			
+			expect(path.segments).to be == ["a"]
+			expect(path.segments.first).to be(:frozen?)
+			expect(path.encoded).to be == "a"
+		end
+		
 	end
 	
 	with ".for" do

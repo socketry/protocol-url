@@ -98,7 +98,7 @@ module Protocol
 						end
 					end
 					
-					segments = segments.dup.freeze unless segments.frozen?
+					segments = segments.map(&:-@).freeze
 				end
 				
 				@segments = segments
