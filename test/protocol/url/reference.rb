@@ -60,6 +60,34 @@ describe Protocol::URL::Reference do
 			expect(reference.path).to be(:frozen?)
 			expect(reference.parameters).to be(:frozen?)
 		end
+		
+		it "prevents parameters assignment" do
+			reference.freeze
+			
+			expect do
+				reference.parameters = {"page" => 2}
+			end.to raise_exception(FrozenError)
+		end
+	end
+	
+	with "#parameters=" do
+		it "replaces parameters while preserving the query" do
+			reference = subject.new("/search", "q=ruby", nil, {"page" => 1})
+			reference.parameters = {"page" => 2}
+			
+			expect(reference.query).to be == "q=ruby"
+			expect(reference.parameters).to be == {"page" => 2}
+			expect(reference.to_s).to be == "/search?q=ruby&page=2"
+		end
+		
+		it "clears parameters while preserving the query" do
+			reference = subject.new("/search", "q=ruby", nil, {"page" => 1})
+			reference.parameters = nil
+			
+			expect(reference.query).to be == "q=ruby"
+			expect(reference.parameters).to be_nil
+			expect(reference.to_s).to be == "/search?q=ruby"
+		end
 	end
 	
 	with ".[]" do

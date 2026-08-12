@@ -15,8 +15,8 @@ module Protocol
 			# Initialize a new relative URL.
 			#
 			# @parameter path [String | Path] The encoded path component.
-			# @parameter query [String, nil] The query string.
-			# @parameter fragment [String, nil] The fragment identifier.
+			# @parameter query [String | Nil] The query string.
+			# @parameter fragment [String | Nil] The fragment identifier.
 			def initialize(path, query = nil, fragment = nil)
 				@path = Path[path]
 				@query = query
@@ -45,11 +45,11 @@ module Protocol
 				@path = Path[path]
 			end
 			
-			# @attribute [String, nil] The query string component.
-			attr :query
+			# @attribute [String | Nil] The query string component.
+			attr_accessor :query
 			
-			# @attribute [String, nil] The fragment identifier.
-			attr :fragment
+			# @attribute [String | Nil] The fragment identifier.
+			attr_accessor :fragment
 			
 			# Resolve the URL path beneath a local filesystem root.
 			#
@@ -111,9 +111,9 @@ module Protocol
 			
 			# Create a new Relative URL with modified components.
 			#
-			# @parameter path [String, nil] The path to merge with the current path.
-			# @parameter query [String, nil] The query string to use.
-			# @parameter fragment [String, nil] The fragment to use.
+			# @parameter path [String | Nil] The path to merge with the current path.
+			# @parameter query [String | Nil] The query string to use.
+			# @parameter fragment [String | Nil] The fragment to use.
 			# @parameter pop [Boolean] Whether to pop the last path component before merging.
 			# @returns [Relative] A new Relative URL with the modified components.
 			#

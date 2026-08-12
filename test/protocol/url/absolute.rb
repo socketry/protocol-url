@@ -35,6 +35,19 @@ describe Protocol::URL::Absolute do
 			expect(url.path).to be(:frozen?)
 			expect(url.freeze).to be_equal(url)
 		end
+		
+		it "prevents scheme and authority assignment" do
+			url = Protocol::URL::Absolute.new("https", "example.com", "/")
+			url.freeze
+			
+			expect do
+				url.scheme = "http"
+			end.to raise_exception(FrozenError)
+			
+			expect do
+				url.authority = "other.example.com"
+			end.to raise_exception(FrozenError)
+		end
 	end
 	
 	with "#path=" do
@@ -43,6 +56,28 @@ describe Protocol::URL::Absolute do
 			url.path = "/updated"
 			
 			expect(url.to_s).to be == "https://example.com/updated?q=test#section"
+		end
+	end
+	
+	with "component assignment" do
+		it "replaces and clears the scheme" do
+			url = Protocol::URL::Absolute.new("http", "example.com", "/path")
+			url.scheme = "https"
+			
+			expect(url.to_s).to be == "https://example.com/path"
+			
+			url.scheme = nil
+			expect(url.to_s).to be == "//example.com/path"
+		end
+		
+		it "replaces and clears the authority" do
+			url = Protocol::URL::Absolute.new("https", "example.com", "/path")
+			url.authority = "cdn.example.com"
+			
+			expect(url.to_s).to be == "https://cdn.example.com/path"
+			
+			url.authority = nil
+			expect(url.to_s).to be == "https:/path"
 		end
 	end
 	

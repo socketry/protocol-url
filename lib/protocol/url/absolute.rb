@@ -15,8 +15,8 @@ module Protocol
 			# @parameter scheme [String] The URL scheme (e.g., "https", "http").
 			# @parameter authority [String] The authority component (e.g., "example.com", "user@host:port").
 			# @parameter path [String | Path] The encoded path component (defaults to "/").
-			# @parameter query [String, nil] The query string.
-			# @parameter fragment [String, nil] The fragment identifier.
+			# @parameter query [String | Nil] The query string.
+			# @parameter fragment [String | Nil] The fragment identifier.
 			def initialize(scheme, authority, path = "/", query = nil, fragment = nil)
 				@scheme = scheme
 				@authority = authority
@@ -36,11 +36,11 @@ module Protocol
 				return super
 			end
 			
-			# @attribute [String] The URL scheme.
-			attr :scheme
+			# @attribute [String | Nil] The URL scheme.
+			attr_accessor :scheme
 			
-			# @attribute [String] The authority component.
-			attr :authority
+			# @attribute [String | Nil] The authority component.
+			attr_accessor :authority
 			
 			# Check if the URL has a non-empty scheme.
 			#
@@ -122,11 +122,11 @@ module Protocol
 			
 			# Create a new Absolute URL with modified components.
 			#
-			# @parameter scheme [String, nil] The scheme to use (nil to remove scheme).
-			# @parameter authority [String, nil] The authority to use (nil to remove authority).
-			# @parameter path [String, nil] The path to merge with the current path.
-			# @parameter query [String, nil] The query string to use.
-			# @parameter fragment [String, nil] The fragment to use.
+			# @parameter scheme [String | Nil] The scheme to use (nil to remove scheme).
+			# @parameter authority [String | Nil] The authority to use (nil to remove authority).
+			# @parameter path [String | Nil] The path to merge with the current path.
+			# @parameter query [String | Nil] The query string to use.
+			# @parameter fragment [String | Nil] The fragment to use.
 			# @parameter pop [Boolean] Whether to pop the last path component before merging.
 			# @returns [Absolute] A new Absolute URL with the modified components.
 			#
