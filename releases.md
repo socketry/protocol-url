@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-  - Allow unfrozen relative and absolute URLs to replace their path component.
+  - Allow unfrozen relative and absolute URLs to replace their components.
 
 ## v0.10.0
 

@@ -36,11 +36,11 @@ module Protocol
 				return super
 			end
 			
-			# @attribute [String] The URL scheme.
-			attr :scheme
+			# @attribute [String, nil] The URL scheme.
+			attr_accessor :scheme
 			
-			# @attribute [String] The authority component.
-			attr :authority
+			# @attribute [String, nil] The authority component.
+			attr_accessor :authority
 			
 			# Check if the URL has a non-empty scheme.
 			#

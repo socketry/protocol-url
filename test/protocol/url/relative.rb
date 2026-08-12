@@ -54,6 +54,19 @@ describe Protocol::URL::Relative do
 				url.path = "/updated"
 			end.to raise_exception(FrozenError)
 		end
+		
+		it "prevents query and fragment assignment" do
+			url = Protocol::URL::Relative.new("/original")
+			url.freeze
+			
+			expect do
+				url.query = "q=test"
+			end.to raise_exception(FrozenError)
+			
+			expect do
+				url.fragment = "section"
+			end.to raise_exception(FrozenError)
+		end
 	end
 	
 	with "#path=" do
@@ -73,6 +86,28 @@ describe Protocol::URL::Relative do
 			url.path = path
 			
 			expect(url.path).to be_equal(path)
+		end
+	end
+	
+	with "component assignment" do
+		it "replaces and clears the query" do
+			url = Protocol::URL::Relative.new("/search", "q=ruby", "results")
+			url.query = "q=python"
+			
+			expect(url.to_s).to be == "/search?q=python#results"
+			
+			url.query = nil
+			expect(url.to_s).to be == "/search#results"
+		end
+		
+		it "replaces and clears the fragment" do
+			url = Protocol::URL::Relative.new("/search", "q=ruby", "old")
+			url.fragment = "new"
+			
+			expect(url.to_s).to be == "/search?q=ruby#new"
+			
+			url.fragment = nil
+			expect(url.to_s).to be == "/search?q=ruby"
 		end
 	end
 	

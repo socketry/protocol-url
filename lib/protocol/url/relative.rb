@@ -46,10 +46,10 @@ module Protocol
 			end
 			
 			# @attribute [String, nil] The query string component.
-			attr :query
+			attr_accessor :query
 			
 			# @attribute [String, nil] The fragment identifier.
-			attr :fragment
+			attr_accessor :fragment
 			
 			# Resolve the URL path beneath a local filesystem root.
 			#
