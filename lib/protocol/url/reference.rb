@@ -102,8 +102,8 @@ module Protocol
 				@parameters = parameters
 			end
 			
-			# @attribute [Hash] User supplied parameters that will be appended to the query part.
-			attr :parameters
+			# @attribute [Hash, nil] User supplied parameters that will be appended to the query part.
+			attr_accessor :parameters
 			
 			# Freeze the reference.
 			#
