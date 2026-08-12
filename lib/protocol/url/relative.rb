@@ -146,7 +146,7 @@ module Protocol
 			#   url.normalize!
 			#   url.path.to_s  # => "/foo/bar/qux"
 			def normalize!
-				self.path = @path.simplify
+				@path = @path.simplify
 				
 				return self
 			end
