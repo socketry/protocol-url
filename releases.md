@@ -1,5 +1,9 @@
 # Releases
 
+## Unreleased
+
+  - Add conservative normalization of encoded URL paths.
+
 ## v0.12.0
 
   - Allow unfrozen relative and absolute URLs to replace their components.

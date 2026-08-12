@@ -20,7 +20,8 @@ module Protocol
 			
 			EMPTY_SEGMENTS = [].freeze
 			ROOT_SEGMENTS = ["", ""].freeze
-			private_constant :EMPTY_SEGMENTS, :ROOT_SEGMENTS
+			NORMALIZATION_PATTERN = /%[0-9A-Fa-f]{2}|%|[^a-zA-Z0-9_.~!$&'()*+,;=:@-]/
+			private_constant :EMPTY_SEGMENTS, :ROOT_SEGMENTS, :NORMALIZATION_PATTERN
 			
 			# Coerce an encoded string or encoded segment array into a path.
 			#
@@ -252,7 +253,43 @@ module Protocol
 			alias to_s encoded
 			alias to_str encoded
 			
-			# Simplify this path in place by resolving literal or percent-encoded dot segments and repeated separators.
+			# Normalize the encoded spelling of this path.
+			#
+			# Percent-encoded unreserved characters are decoded, retained percent escapes
+			# use uppercase hexadecimal digits, and literal characters outside the path
+			# segment grammar are percent encoded. Reserved characters retain their
+			# encoded or literal form because those forms are not generally equivalent.
+			#
+			# This operation preserves the path structure. Use {simplify} separately when
+			# application semantics permit resolving dot segments or repeated separators.
+			#
+			# @returns [Path] The normalized path, or this path if already normalized.
+			# @raises [ArgumentError] If the path contains malformed percent encoding, NUL, or invalid string encoding.
+			def normalize
+				encoded = self.encoded
+				unless encoded.valid_encoding? && encoded.encoding.ascii_compatible?
+					raise ArgumentError, "Path segment has invalid encoding!"
+				end
+				
+				segments = self.segments
+				normalized_segments = nil
+				
+				segments.each_with_index do |segment, index|
+					next unless NORMALIZATION_PATTERN.match?(segment)
+					
+					normalized = normalize_segment(segment)
+					next if normalized == segment
+					
+					normalized_segments ||= segments.dup
+					normalized_segments[index] = normalized
+				end
+				
+				return self unless normalized_segments
+				
+				return self.class.new(nil, normalized_segments)
+			end
+			
+			# Simplify this path in place by resolving literal or percent-encoded dot segments.
 			#
 			# @returns [Path | Nil] This path when changed, otherwise `nil`.
 			def simplify!
@@ -265,7 +302,7 @@ module Protocol
 				return self
 			end
 			
-			# Return a canonical path by resolving literal or percent-encoded dot segments and repeated separators.
+			# Return a canonical path by resolving literal or percent-encoded dot segments.
 			#
 			# Absolute paths do not retain parent components above the root. Relative paths
 			# retain leading parent components which cannot be resolved locally.
@@ -342,6 +379,42 @@ module Protocol
 			
 			private
 			
+			# Normalize one encoded path segment:
+			def normalize_segment(segment)
+				return segment.gsub(NORMALIZATION_PATTERN) do |character|
+					byte = character.getbyte(0)
+					
+					if byte == 0
+						raise ArgumentError, "Path segment contains NUL!"
+					elsif byte == 0x25
+						if character.bytesize == 1
+							raise ArgumentError, "String contains malformed percent encoding!"
+						end
+						
+						byte = character.byteslice(1, 2).to_i(16)
+						if byte == 0
+							raise ArgumentError, "Path segment contains NUL!"
+						elsif unreserved_byte?(byte)
+							byte.chr
+						else
+							character.upcase
+						end
+					else
+						Encoding.escape(character)
+					end
+				end
+			end
+			
+			# Whether the byte represents an unreserved URI character:
+			def unreserved_byte?(byte)
+				case byte
+				when 0x30..0x39, 0x41..0x5A, 0x61..0x7A, 0x2D, 0x2E, 0x5F, 0x7E
+					return true
+				else
+					return false
+				end
+			end
+			
 			# Identify dot segments, including percent-encoded spellings. RFC 3986 treats
 			# percent-encoded unreserved characters as equivalent to their literal forms;
 			# the WHATWG URL Standard explicitly recognizes `%2e`, `.%2e`, `%2e.`, and
@@ -370,8 +443,7 @@ module Protocol
 					if dot == "."
 						return index
 					elsif segment == ""
-						# Leading and trailing empty components are significant.
-						return index if index > 0 && index < last_index
+						# Empty segments are significant and do not require simplification.
 					elsif dot == ".."
 						# Absolute paths cannot retain parent components. Relative paths
 						# can retain them only before the first regular component.
@@ -414,11 +486,9 @@ module Protocol
 							segments[offset] = ""
 							offset += 1
 						end
-					elsif segment == "" && index != last_index
-						# Collapse repeated separators.
 					elsif dot == ".." && offset > 0 && dot_segment(segments[offset - 1]) != ".."
-						# Pop a component, but never pop the absolute-path root.
-						offset -= 1 if segments[offset - 1] != ""
+						# Pop a component, but never pop the leading absolute-path root:
+						offset -= 1 unless segments.first == "" && offset == 1
 						
 						# A trailing parent reference also denotes a directory.
 						if index == last_index
