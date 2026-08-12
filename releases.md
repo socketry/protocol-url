@@ -1,6 +1,6 @@
 # Releases
 
-## Unreleased
+## v0.12.0
 
   - Allow unfrozen relative and absolute URLs to replace their components.
 
