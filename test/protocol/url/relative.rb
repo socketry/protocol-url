@@ -45,6 +45,35 @@ describe Protocol::URL::Relative do
 				path.simplify!
 			end.to raise_exception(FrozenError)
 		end
+		
+		it "prevents path assignment" do
+			url = Protocol::URL::Relative.new("/original")
+			url.freeze
+			
+			expect do
+				url.path = "/updated"
+			end.to raise_exception(FrozenError)
+		end
+	end
+	
+	with "#path=" do
+		it "replaces and coerces the path" do
+			url = Protocol::URL::Relative.new("/original", "q=test", "section")
+			url.path = "/updated"
+			
+			expect(url.path).to be == Protocol::URL::Path["/updated"]
+			expect(url.query).to be == "q=test"
+			expect(url.fragment).to be == "section"
+		end
+		
+		it "assigns an existing path" do
+			url = Protocol::URL::Relative.new("/original")
+			path = Protocol::URL::Path["/updated"]
+			
+			url.path = path
+			
+			expect(url.path).to be_equal(path)
+		end
 	end
 	
 	with "#+" do

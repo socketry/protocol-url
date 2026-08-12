@@ -37,6 +37,15 @@ describe Protocol::URL::Absolute do
 		end
 	end
 	
+	with "#path=" do
+		it "replaces the path while preserving the origin" do
+			url = Protocol::URL::Absolute.new("https", "example.com", "/original", "q=test", "section")
+			url.path = "/updated"
+			
+			expect(url.to_s).to be == "https://example.com/updated?q=test#section"
+		end
+	end
+	
 	describe "fragment handling" do
 		it "preserves encoded fragments" do
 			url = Protocol::URL["http://example.com/path#hello%20world"]

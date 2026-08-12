@@ -38,6 +38,13 @@ module Protocol
 			# @attribute [Path] The path component of the URL.
 			attr :path
 			
+			# Replace the path component of this URL.
+			# @parameter path [String | Path] The encoded path component.
+			# @returns [Path] The assigned path component.
+			def path=(path)
+				@path = Path[path]
+			end
+			
 			# @attribute [String, nil] The query string component.
 			attr :query
 			

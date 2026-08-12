@@ -1,5 +1,9 @@
 # Releases
 
+## Unreleased
+
+  - Allow unfrozen relative and absolute URLs to replace their path component.
+
 ## v0.10.0
 
   - Rename `Protocol::URL::FormData::Parser::CONTENT_TYPE` to `MEDIA_TYPE`.
