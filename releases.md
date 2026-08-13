@@ -1,6 +1,6 @@
 # Releases
 
-## Unreleased
+## v0.14.0
 
   - Allow paths to compare with their encoded string representation.
 
