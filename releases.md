@@ -1,5 +1,9 @@
 # Releases
 
+## Unreleased
+
+  - Allow paths to compare with their encoded string representation.
+
 ## v0.13.0
 
   - Add conservative normalization of encoded URL paths.
