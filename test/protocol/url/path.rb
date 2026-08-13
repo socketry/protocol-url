@@ -121,6 +121,20 @@ describe Protocol::URL::Path do
 			expect(encoded.hash).to be == Protocol::URL::Path["/a/%62"].hash
 		end
 		
+		it "compares with encoded strings" do
+			path = Protocol::URL::Path["/a/%62"]
+			
+			expect(path).to be == "/a/%62"
+			expect(path).not.to be == "/a/b"
+			expect(path).not.to be(:eql?, "/a/%62")
+		end
+		
+		it "supports reverse string comparison" do
+			path = Protocol::URL::Path["/a/%62"]
+			
+			expect("/a/%62").to be == path
+		end
+		
 		it "preserves encoded separator boundaries" do
 			encoded_separator = Protocol::URL::Path["/a/b%2Fc"]
 			structural_separator = Protocol::URL::Path["/a/b/c"]

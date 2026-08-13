@@ -208,14 +208,18 @@ module Protocol
 			end
 			
 			# @parameter other [Object] The value to compare with this path.
-			# @returns [Boolean] Whether both paths have the same encoded representation.
+			# @returns [Boolean] Whether both values are the same.
 			def ==(other)
-				eql?(other)
+				if other.is_a?(String)
+					return encoded == other
+				else
+					return eql?(other)
+				end
 			end
 			
 			# Compare this path with another path using exact encoded string identity.
 			# @parameter other [Object] The value to compare with this path.
-			# @returns [Boolean] Whether both paths have equal encoded strings.
+			# @returns [Boolean] Whether both paths are the same.
 			def eql?(other)
 				other.is_a?(Path) && encoded.eql?(other.encoded)
 			end
