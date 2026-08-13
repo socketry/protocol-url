@@ -265,7 +265,7 @@ describe Protocol::URL::Path do
 			"removes a leading current directory" => [[".", "a", "b"], ["a", "b"]],
 			"removes an intermediate current directory" => [["a", ".", "b"], ["a", "b"]],
 			"preserves a trailing directory marker" => [["a", "b", "."], ["a", "b", ""]],
-			"preserves repeated separators" => [["a", "", "b", "", "", "c"], ["a", "", "b", "", "", "c"]],
+			"collapses repeated separators" => [["a", "", "b", "", "", "c"], ["a", "b", "c"]],
 			"preserves a trailing separator" => [["a", "b", ""], ["a", "b", ""]],
 			"resolves a parent directory" => [["a", "b", "..", "c"], ["a", "c"]],
 			"resolves multiple parent directories" => [["a", "b", "c", "..", "..", "d"], ["a", "d"]],
@@ -275,7 +275,7 @@ describe Protocol::URL::Path do
 			"preserves a parent at the relative root" => [["..", "a"], ["..", "a"]],
 			"preserves multiple parents at the relative root" => [["..", "..", "a"], ["..", "..", "a"]],
 			"retains unresolved parent markers" => [["a", "..", "..", "b"], ["..", "b"]],
-			"handles a complex path" => [["", "a", "b", ".", "c", "..", "d", "", "e"], ["", "a", "b", "d", "", "e"]],
+			"handles a complex path" => [["", "a", "b", ".", "c", "..", "d", "", "e"], ["", "a", "b", "d", "e"]],
 			"resolves all dot segments" => [[".", "a", ".", "b", "..", "c", ".", "d", ".."], ["a", "c", ""]],
 		}.each do |description, (components, expected)|
 			it description do
@@ -310,10 +310,10 @@ describe Protocol::URL::Path do
 			expect(path.simplify.encoded).to be == "/a/c"
 		end
 		
-		it "resolves a parent following an empty segment" do
+		it "resolves a parent following a repeated separator" do
 			path = Protocol::URL::Path["/a//../b"]
 			
-			expect(path.simplify.encoded).to be == "/a/b"
+			expect(path.simplify.encoded).to be == "/b"
 		end
 	end
 	
@@ -424,7 +424,7 @@ describe Protocol::URL::Path do
 			path = Protocol::URL::Path[["", "..", "a", "", "b", "..", ""]]
 			
 			path.simplify!
-			expect(path.components).to be == ["", "a", "", ""]
+			expect(path.components).to be == ["", "a", ""]
 		end
 	end
 	

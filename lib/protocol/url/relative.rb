@@ -139,7 +139,10 @@ module Protocol
 			# - Uses uppercase hexadecimal digits for retained percent escapes
 			# - Removes "." segments (current directory)
 			# - Resolves ".." segments (parent directory)
-			# - Preserves empty path segments represented by consecutive slashes
+			# - Collapses empty path segments represented by consecutive slashes
+			#
+			# Normalization is intentionally lossy. Callers that need to preserve the
+			# original path structure should retain the parsed URL and avoid this method.
 			#
 			# @returns [self] The normalized URL.
 			#

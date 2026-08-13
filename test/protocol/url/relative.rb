@@ -293,16 +293,16 @@ describe Protocol::URL::Relative do
 			expect(url.path).to be == Protocol::URL::Path["/foo/baz"]
 		end
 		
-		it "preserves empty path segments" do
+		it "collapses empty path segments" do
 			url = Protocol::URL::Relative.new("/foo//bar///baz")
 			url.normalize!
-			expect(url.path).to be == Protocol::URL::Path["/foo//bar///baz"]
+			expect(url.path).to be == Protocol::URL::Path["/foo/bar/baz"]
 		end
 		
 		it "handles complex paths" do
 			url = Protocol::URL::Relative.new("/foo//bar/./baz/../qux")
 			url.normalize!
-			expect(url.path).to be == Protocol::URL::Path["/foo//bar/qux"]
+			expect(url.path).to be == Protocol::URL::Path["/foo/bar/qux"]
 		end
 		
 		it "preserves trailing slash" do
@@ -326,7 +326,7 @@ describe Protocol::URL::Relative do
 		it "preserves query and fragment" do
 			url = Protocol::URL::Relative.new("/foo//bar", "q=test", "section")
 			url.normalize!
-			expect(url.path).to be == Protocol::URL::Path["/foo//bar"]
+			expect(url.path).to be == Protocol::URL::Path["/foo/bar"]
 			expect(url.query).to be == "q=test"
 			expect(url.fragment).to be == "section"
 		end

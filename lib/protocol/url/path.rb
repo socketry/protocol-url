@@ -261,7 +261,7 @@ module Protocol
 			# encoded or literal form because those forms are not generally equivalent.
 			#
 			# This operation preserves the path structure. Use {simplify} separately when
-			# application semantics permit resolving dot segments or repeated separators.
+			# application semantics permit resolving dot segments or collapsing repeated separators.
 			#
 			# @returns [Path] The normalized path, or this path if already normalized.
 			# @raises [ArgumentError] If the path contains malformed percent encoding, NUL, or invalid string encoding.
@@ -289,7 +289,7 @@ module Protocol
 				return self.class.new(nil, normalized_segments)
 			end
 			
-			# Simplify this path in place by resolving literal or percent-encoded dot segments.
+			# Simplify this path in place by resolving literal or percent-encoded dot segments and repeated separators.
 			#
 			# @returns [Path | Nil] This path when changed, otherwise `nil`.
 			def simplify!
@@ -302,7 +302,7 @@ module Protocol
 				return self
 			end
 			
-			# Return a canonical path by resolving literal or percent-encoded dot segments.
+			# Return a canonical path by resolving literal or percent-encoded dot segments and repeated separators.
 			#
 			# Absolute paths do not retain parent components above the root. Relative paths
 			# retain leading parent components which cannot be resolved locally.
@@ -443,7 +443,8 @@ module Protocol
 					if dot == "."
 						return index
 					elsif segment == ""
-						# Empty segments are significant and do not require simplification.
+						# Leading and trailing empty components are significant.
+						return index if index > 0 && index < last_index
 					elsif dot == ".."
 						# Absolute paths cannot retain parent components. Relative paths
 						# can retain them only before the first regular component.
@@ -486,9 +487,11 @@ module Protocol
 							segments[offset] = ""
 							offset += 1
 						end
+					elsif segment == "" && index != last_index
+						# Collapse repeated separators:
 					elsif dot == ".." && offset > 0 && dot_segment(segments[offset - 1]) != ".."
-						# Pop a component, but never pop the leading absolute-path root:
-						offset -= 1 unless segments.first == "" && offset == 1
+						# Pop a component, but never pop the absolute-path root:
+						offset -= 1 if segments[offset - 1] != ""
 						
 						# A trailing parent reference also denotes a directory.
 						if index == last_index
