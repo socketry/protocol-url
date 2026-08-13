@@ -132,12 +132,17 @@ module Protocol
 				self.class.new(path || @path, query, fragment)
 			end
 			
-			# Normalize the path by resolving "." and ".." segments and removing duplicate slashes.
+			# Normalize the encoded path and simplify its structure.
 			#
-			# This modifies the URL in-place by simplifying the path component:
+			# This modifies the URL in-place by normalizing and simplifying the path component:
+			# - Decodes percent-encoded unreserved characters
+			# - Uses uppercase hexadecimal digits for retained percent escapes
 			# - Removes "." segments (current directory)
 			# - Resolves ".." segments (parent directory)
-			# - Collapses multiple consecutive slashes to single slashes (except at start)
+			# - Collapses empty path segments represented by consecutive slashes
+			#
+			# Normalization is intentionally lossy. Callers that need to preserve the
+			# original path structure should retain the parsed URL and avoid this method.
 			#
 			# @returns [self] The normalized URL.
 			#
@@ -146,7 +151,7 @@ module Protocol
 			#   url.normalize!
 			#   url.path.to_s  # => "/foo/bar/qux"
 			def normalize!
-				@path = @path.simplify
+				@path = @path.normalize.simplify
 				
 				return self
 			end

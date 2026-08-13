@@ -269,6 +269,18 @@ describe Protocol::URL::Relative do
 	end
 	
 	with "#normalize!" do
+		it "normalizes the encoded path" do
+			url = Protocol::URL::Relative.new("/%66oo/a%2fb")
+			url.normalize!
+			expect(url.path).to be == Protocol::URL::Path["/foo/a%2Fb"]
+		end
+		
+		it "simplifies normalized dot segments" do
+			url = Protocol::URL::Relative.new("/foo/%2e%2e/bar")
+			url.normalize!
+			expect(url.path).to be == Protocol::URL::Path["/bar"]
+		end
+		
 		it "removes dot segments" do
 			url = Protocol::URL::Relative.new("/foo/./bar")
 			url.normalize!
@@ -281,7 +293,7 @@ describe Protocol::URL::Relative do
 			expect(url.path).to be == Protocol::URL::Path["/foo/baz"]
 		end
 		
-		it "collapses multiple slashes" do
+		it "collapses empty path segments" do
 			url = Protocol::URL::Relative.new("/foo//bar///baz")
 			url.normalize!
 			expect(url.path).to be == Protocol::URL::Path["/foo/bar/baz"]

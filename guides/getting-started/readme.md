@@ -290,10 +290,13 @@ messy = Protocol::URL["https://example.com/a/b/../c/./d"]
 # Parsing preserves the original path until simplification is requested:
 messy.path.to_s  # => "/a/b/../c/./d"
 
+# Normalization is intentionally lossy and produces a canonical path:
 messy.normalize!
 messy.path.to_s  # => "/a/c/d"
 messy.to_s  # => "https://example.com/a/c/d"
 ```
+
+If the original path structure is significant, retain the parsed URL and do not call `normalize!`.
 
 ## Best Practices
 

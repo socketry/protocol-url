@@ -309,6 +309,94 @@ describe Protocol::URL::Path do
 			
 			expect(path.simplify.encoded).to be == "/a/c"
 		end
+		
+		it "resolves a parent following a repeated separator" do
+			path = Protocol::URL::Path["/a//../b"]
+			
+			expect(path.simplify.encoded).to be == "/b"
+		end
+	end
+	
+	with "#normalize" do
+		it "decodes percent-encoded unreserved characters" do
+			path = Protocol::URL::Path["/%41%7a%30%2d%2e%5f%7e"]
+			
+			expect(path.normalize.encoded).to be == "/Az0-._~"
+		end
+		
+		it "uses uppercase hexadecimal digits for retained percent escapes" do
+			path = Protocol::URL::Path["/a%2fb%3fc%ff"]
+			
+			expect(path.normalize.encoded).to be == "/a%2Fb%3Fc%FF"
+		end
+		
+		it "preserves literal path segment delimiters" do
+			path = Protocol::URL::Path["/!$&'()*+,;=:@"]
+			
+			expect(path.normalize).to be_equal(path)
+		end
+		
+		it "preserves the distinction between encoded and literal reserved characters" do
+			path = Protocol::URL::Path["/a%3Ab:a%2Fb"]
+			
+			expect(path.normalize).to be_equal(path)
+		end
+		
+		it "percent encodes characters outside the path segment grammar" do
+			path = Protocol::URL::Path["/hello world?[x]#"]
+			
+			expect(path.normalize.encoded).to be == "/hello%20world%3F%5Bx%5D%23"
+		end
+		
+		it "percent encodes literal unicode characters" do
+			path = Protocol::URL::Path["/❤️"]
+			
+			expect(path.normalize.encoded).to be == "/%E2%9D%A4%EF%B8%8F"
+		end
+		
+		it "preserves path structure" do
+			path = Protocol::URL::Path["//a/%2e%2e/%77elcome"]
+			
+			expect(path.normalize.encoded).to be == "//a/../welcome"
+		end
+		
+		it "returns itself when already normalized" do
+			path = Protocol::URL::Path["/welcome/a:b/%2F"]
+			
+			expect(path.normalize).to be_equal(path)
+		end
+		
+		it "rejects literal NUL" do
+			path = Protocol::URL::Path["/a\0b"]
+			
+			expect do
+				path.normalize
+			end.to raise_exception(ArgumentError, message: be == "Path segment contains NUL!")
+		end
+		
+		it "rejects percent-encoded NUL" do
+			path = Protocol::URL::Path["/a%00b"]
+			
+			expect do
+				path.normalize
+			end.to raise_exception(ArgumentError, message: be == "Path segment contains NUL!")
+		end
+		
+		it "rejects malformed percent encoding" do
+			["/a%", "/a%0", "/a%gg"].each do |encoded|
+				expect do
+					Protocol::URL::Path[encoded].normalize
+				end.to raise_exception(ArgumentError, message: be == "String contains malformed percent encoding!")
+			end
+		end
+		
+		it "rejects invalid string encoding" do
+			path = Protocol::URL::Path["/a\xFF".dup.force_encoding(::Encoding::UTF_8)]
+			
+			expect do
+				path.normalize
+			end.to raise_exception(ArgumentError, message: be == "Path segment has invalid encoding!")
+		end
 	end
 	
 	with "#simplify!" do
@@ -442,6 +530,12 @@ describe Protocol::URL::Path do
 			
 			expect(Protocol::URL::Path["/documents/report.pdf"].local_path(root)).to be == expected
 			expect(Protocol::URL::Path["documents/report.pdf"].local_path(root)).to be == expected
+		end
+		
+		it "maps empty URL segments to the same local filesystem path" do
+			expected = File.join(root, "documents", "report.pdf")
+			
+			expect(Protocol::URL::Path["/documents//report.pdf"].local_path(root)).to be == expected
 		end
 		
 		it "unescapes percent-encoded and Unicode characters" do
