@@ -291,9 +291,10 @@ module Protocol
 			
 			# Simplify this path in place by resolving literal or percent-encoded dot segments and repeated separators.
 			#
+			# @parameter preserve_empty [Boolean] Whether to preserve empty path segments represented by repeated separators.
 			# @returns [Path | Nil] This path when changed, otherwise `nil`.
-			def simplify!
-				simplified = simplify
+			def simplify!(preserve_empty: false)
+				simplified = simplify(preserve_empty: preserve_empty)
 				return nil if simplified.equal?(self)
 				
 				@encoded = simplified.encoded
@@ -307,9 +308,10 @@ module Protocol
 			# Absolute paths do not retain parent components above the root. Relative paths
 			# retain leading parent components which cannot be resolved locally.
 			#
+			# @parameter preserve_empty [Boolean] Whether to preserve empty path segments represented by repeated separators.
 			# @returns [Path] The simplified path, or this path if already canonical.
-			def simplify
-				segments = simplify_segments
+			def simplify(preserve_empty: false)
+				segments = simplify_segments(preserve_empty: preserve_empty)
 				return self unless segments
 				
 				return self.class.new(nil, segments)
@@ -432,7 +434,7 @@ module Protocol
 			end
 			
 			# Find the first encoded segment which requires simplification.
-			def simplification_index(segments)
+			def simplification_index(segments, preserve_empty: false)
 				absolute = segments.first == ""
 				regular_segment = false
 				last_index = segments.size - 1
@@ -444,7 +446,9 @@ module Protocol
 						return index
 					elsif segment == ""
 						# Leading and trailing empty components are significant.
-						return index if index > 0 && index < last_index
+						if !preserve_empty && index > 0 && index < last_index
+							return index
+						end
 					elsif dot == ".."
 						# Absolute paths cannot retain parent components. Relative paths
 						# can retain them only before the first regular component.
@@ -458,19 +462,19 @@ module Protocol
 			end
 			
 			# Return simplified encoded segments, or nil if they are already canonical.
-			def simplify_segments
+			def simplify_segments(preserve_empty: false)
 				segments = self.segments
-				return nil unless start_index = simplification_index(segments)
+				return nil unless start_index = simplification_index(segments, preserve_empty: preserve_empty)
 				
 				segments = segments.dup
-				simplify_segments!(segments, start_index)
+				simplify_segments!(segments, start_index, preserve_empty: preserve_empty)
 				
 				return segments
 			end
 			
 			# Simplify the given encoded segments in place.
-			def simplify_segments!(segments, start_index = nil)
-				start_index ||= simplification_index(segments)
+			def simplify_segments!(segments, start_index = nil, preserve_empty: false)
+				start_index ||= simplification_index(segments, preserve_empty: preserve_empty)
 				return nil unless start_index
 				
 				offset = start_index
@@ -488,10 +492,18 @@ module Protocol
 							offset += 1
 						end
 					elsif segment == "" && index != last_index
-						# Collapse repeated separators:
+						# Preserve or collapse repeated separators according to the requested policy:
+						if preserve_empty
+							segments[offset] = segment if offset < index
+							offset += 1
+						end
 					elsif dot == ".." && offset > 0 && dot_segment(segments[offset - 1]) != ".."
 						# Pop a component, but never pop the absolute-path root:
-						offset -= 1 if segments[offset - 1] != ""
+						if preserve_empty
+							offset -= 1 unless segments.first == "" && offset == 1
+						elsif segments[offset - 1] != ""
+							offset -= 1
+						end
 						
 						# A trailing parent reference also denotes a directory.
 						if index == last_index

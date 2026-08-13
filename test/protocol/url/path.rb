@@ -315,6 +315,24 @@ describe Protocol::URL::Path do
 			
 			expect(path.simplify.encoded).to be == "/b"
 		end
+		
+		it "can preserve repeated separators" do
+			path = Protocol::URL::Path["/a//b///c"]
+			
+			expect(path.simplify(preserve_empty: true)).to be_equal(path)
+		end
+		
+		it "resolves dot segments while preserving repeated separators" do
+			path = Protocol::URL::Path["/a//b/./c/../d"]
+			
+			expect(path.simplify(preserve_empty: true).encoded).to be == "/a//b/d"
+		end
+		
+		it "resolves a parent against an empty segment when preserving repeated separators" do
+			path = Protocol::URL::Path["/a//../b"]
+			
+			expect(path.simplify(preserve_empty: true).encoded).to be == "/a/b"
+		end
 	end
 	
 	with "#normalize" do
@@ -425,6 +443,13 @@ describe Protocol::URL::Path do
 			
 			path.simplify!
 			expect(path.components).to be == ["", "a", ""]
+		end
+		
+		it "can preserve repeated separators" do
+			path = Protocol::URL::Path["/a//b/./c"]
+			
+			path.simplify!(preserve_empty: true)
+			expect(path.encoded).to be == "/a//b/c"
 		end
 	end
 	
