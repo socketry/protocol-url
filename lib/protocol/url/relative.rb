@@ -132,6 +132,23 @@ module Protocol
 				self.class.new(path || @path, query, fragment)
 			end
 			
+			# Express this URL relative to the given base path.
+			#
+			# Already-relative paths are returned unchanged. Query and fragment components
+			# are preserved when converting a root-relative path.
+			#
+			# @parameter base [Relative | Path | String] The base URL or path.
+			# @returns [Relative] The relative URL.
+			def relative_to(base)
+				return self unless @path.absolute?
+				
+				if base.is_a?(Relative)
+					base = base.path
+				end
+				
+				return self.class.new(@path.relative(base), @query, @fragment)
+			end
+			
 			# Normalize the encoded path and simplify its structure.
 			#
 			# This modifies the URL in-place by normalizing and simplifying the path component:

@@ -145,6 +145,13 @@ module Protocol
 				self.class.new(scheme, authority, path || @path, query, fragment)
 			end
 			
+			# Absolute URLs cannot be made relative without comparing their origins.
+			# @parameter base [Object] The ignored base URL or path.
+			# @returns [self] This absolute URL.
+			def relative_to(base)
+				return self
+			end
+			
 			# Convert the URL to an array representation.
 			#
 			# @returns [Array] An array of `[scheme, authority, path, query, fragment]`.

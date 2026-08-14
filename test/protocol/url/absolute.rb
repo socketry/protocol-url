@@ -199,6 +199,14 @@ describe Protocol::URL::Absolute do
 		end
 	end
 	
+	with "#relative_to" do
+		it "returns absolute URLs unchanged" do
+			url = Protocol::URL::Absolute.new("https", "example.com", "/docs/guide", "q=ruby", "examples")
+			
+			expect(url.relative_to("/docs/index")).to be_equal(url)
+		end
+	end
+	
 	with "#to_ary" do
 		it "returns array representation" do
 			url = Protocol::URL::Absolute.new("https", "example.com", "/path", "q=test", "section")

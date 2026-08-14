@@ -194,6 +194,37 @@ describe Protocol::URL::Relative do
 		end
 	end
 	
+	with "#relative_to" do
+		it "makes root-relative URLs relative to a path" do
+			url = Protocol::URL::Relative.new("/docs/guide", "q=ruby", "examples")
+			result = url.relative_to("/docs/index")
+			
+			expect(result).to be_a(Protocol::URL::Relative)
+			expect(result.path).to be == Protocol::URL::Path["guide"]
+			expect(result.query).to be == "q=ruby"
+			expect(result.fragment).to be == "examples"
+		end
+		
+		it "accepts a URL as the base" do
+			url = Protocol::URL::Relative.new("/docs/guide")
+			base = Protocol::URL::Relative.new("/docs/index")
+			
+			expect(url.relative_to(base).path).to be == Protocol::URL::Path["guide"]
+		end
+		
+		it "preserves encoded path segments" do
+			url = Protocol::URL::Relative.new("/files/a%2Fb")
+			
+			expect(url.relative_to("/index").path).to be == Protocol::URL::Path["files/a%2Fb"]
+		end
+		
+		it "returns already-relative URLs unchanged" do
+			url = Protocol::URL::Relative.new("../guide", "q=ruby", "examples")
+			
+			expect(url.relative_to("/docs/index")).to be_equal(url)
+		end
+	end
+	
 	with "#to_ary" do
 		it "returns array representation" do
 			url = Protocol::URL::Relative.new("/path", "q=test", "section")
