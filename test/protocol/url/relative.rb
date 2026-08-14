@@ -218,6 +218,12 @@ describe Protocol::URL::Relative do
 			expect(url.relative_to("/index").path).to be == Protocol::URL::Path["files/a%2Fb"]
 		end
 		
+		it "identifies the root directory explicitly" do
+			url = Protocol::URL::Relative.new("/", "q=ruby", "examples")
+			
+			expect(url.relative_to("/index").to_s).to be == "./?q=ruby#examples"
+		end
+		
 		it "returns already-relative URLs unchanged" do
 			url = Protocol::URL::Relative.new("../guide", "q=ruby", "examples")
 			

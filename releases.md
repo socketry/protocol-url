@@ -1,5 +1,9 @@
 # Releases
 
+## Unreleased
+
+  - Preserve directory and file semantics when generating relative URL paths.
+
 ## v0.15.0
 
   - Add `Protocol::URL::Relative#relative_to` for expressing root-relative URLs relative to a base path.

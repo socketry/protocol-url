@@ -509,6 +509,18 @@ describe Protocol::URL::Path do
 			expect(Protocol::URL::Path.relative("/docs/", "/docs/api/reference.html")).to be == "../"
 		end
 		
+		it "identifies the current directory explicitly" do
+			expect(Protocol::URL::Path.relative("/docs/", "/docs/index.html")).to be == "./"
+		end
+		
+		it "calculates relative path to the root directory" do
+			expect(Protocol::URL::Path.relative("/", "/index.html")).to be == "./"
+		end
+		
+		it "distinguishes a file from its containing directory" do
+			expect(Protocol::URL::Path.relative("/docs", "/docs/index.html")).to be == "../docs"
+		end
+		
 		it "calculates relative path with multiple levels up" do
 			expect(Protocol::URL::Path.relative("/a/file.txt", "/x/y/z/")).to be == "../../../a/file.txt"
 		end
