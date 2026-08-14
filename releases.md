@@ -1,6 +1,6 @@
 # Releases
 
-## Unreleased
+## v0.15.0
 
   - Add `Protocol::URL::Relative#relative_to` for expressing root-relative URLs relative to a base path.
 
