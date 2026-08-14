@@ -1,5 +1,9 @@
 # Releases
 
+## Unreleased
+
+  - Add `Protocol::URL::Relative#relative_to` for expressing root-relative URLs relative to a base path.
+
 ## v0.14.0
 
   - Allow paths to compare with their encoded string representation.
