@@ -34,6 +34,47 @@ bundle exec sus
 
 Please see the [project releases](https://socketry.github.io/protocol-url/releases/index) for all releases.
 
+### v0.16.0
+
+  - Preserve directory and file semantics when generating relative URL paths.
+
+### v0.15.0
+
+  - Add `Protocol::URL::Relative#relative_to` for expressing root-relative URLs relative to a base path.
+
+### v0.14.0
+
+  - Allow paths to compare with their encoded string representation.
+
+### v0.13.0
+
+  - Add conservative normalization of encoded URL paths.
+
+### v0.12.0
+
+  - Allow unfrozen relative and absolute URLs to replace their components.
+
+### v0.10.0
+
+  - Rename `Protocol::URL::FormData::Parser::CONTENT_TYPE` to `MEDIA_TYPE`.
+
+### v0.9.0
+
+  - Add `Protocol::URL::LimitError` for configured processing limits.
+
+### v0.8.0
+
+  - Use consistent limit naming for form data parser constraints.
+
+### v0.7.0
+
+  - Allow `Protocol::URL::FormData::Parser#parse` to populate a supplied result object.
+
+### v0.6.0
+
+  - Add `Protocol::URL::FormData::Parser` for incremental, limited parsing of `application/x-www-form-urlencoded` form data.
+  - Add `Protocol::URL::FormData::Nested` for consistently building nested form data while preserving absent and empty values.
+
 ### v0.15.0
 
   - Add `Protocol::URL::Relative#relative_to` for expressing root-relative URLs relative to a base path.

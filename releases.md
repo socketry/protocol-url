@@ -1,6 +1,6 @@
 # Releases
 
-## Unreleased
+## v0.16.0
 
   - Preserve directory and file semantics when generating relative URL paths.
 
