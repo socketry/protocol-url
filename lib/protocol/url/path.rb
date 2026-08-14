@@ -372,11 +372,24 @@ module Protocol
 					common_length = i + 1
 				end
 				
+				# Preserve the final segment when the target names the containing directory as a file:
+				if common_length > 0 && common_length == target_segments.size && target_segments.last != ""
+					common_length -= 1
+				end
+				
 				# Calculate how many levels to go up
 				up_levels = from_segments.size - common_length
 				
 				# Build the relative path segments
 				relative_segments = [".."] * up_levels + target_segments[common_length..-1]
+				
+				# An empty reference identifies the current document, so identify the current directory explicitly:
+				if relative_segments == [""]
+					relative_segments = [".", ""]
+				elsif relative_segments.first&.include?(":")
+					# A colon in the first segment would be interpreted as a URI scheme:
+					relative_segments.unshift(".")
+				end
 				
 				return Path.new(nil, relative_segments)
 			end
