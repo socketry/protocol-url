@@ -521,6 +521,10 @@ describe Protocol::URL::Path do
 			expect(Protocol::URL::Path.relative("/docs", "/docs/index.html")).to be == "../docs"
 		end
 		
+		it "disambiguates a colon in the first segment" do
+			expect(Protocol::URL::Path.relative("/docs/this:that", "/docs/index.html")).to be == "./this:that"
+		end
+		
 		it "calculates relative path with multiple levels up" do
 			expect(Protocol::URL::Path.relative("/a/file.txt", "/x/y/z/")).to be == "../../../a/file.txt"
 		end

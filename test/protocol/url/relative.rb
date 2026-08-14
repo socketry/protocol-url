@@ -224,6 +224,14 @@ describe Protocol::URL::Relative do
 			expect(url.relative_to("/index").to_s).to be == "./?q=ruby#examples"
 		end
 		
+		it "disambiguates a colon in the first segment" do
+			url = Protocol::URL::Relative.new("/docs/this:that")
+			relative_url = url.relative_to("/docs/index")
+			
+			expect(relative_url.to_s).to be == "./this:that"
+			expect(Protocol::URL[relative_url.to_s]).to be_a(Protocol::URL::Relative)
+		end
+		
 		it "returns already-relative URLs unchanged" do
 			url = Protocol::URL::Relative.new("../guide", "q=ruby", "examples")
 			

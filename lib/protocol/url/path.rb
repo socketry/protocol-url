@@ -386,6 +386,9 @@ module Protocol
 				# An empty reference identifies the current document, so identify the current directory explicitly:
 				if relative_segments == [""]
 					relative_segments = [".", ""]
+				elsif relative_segments.first&.include?(":")
+					# A colon in the first segment would be interpreted as a URI scheme:
+					relative_segments.unshift(".")
 				end
 				
 				return Path.new(nil, relative_segments)
