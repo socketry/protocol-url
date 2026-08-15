@@ -205,6 +205,20 @@ describe Protocol::URL::Relative do
 			expect(result.fragment).to be == "examples"
 		end
 		
+		it "can identify same-directory URLs explicitly" do
+			url = Protocol::URL::Relative.new("/docs/guide", "q=ruby", "examples")
+			result = url.relative_to("/docs/index", explicit: true)
+			
+			expect(result.to_s).to be == "./guide?q=ruby#examples"
+		end
+		
+		it "does not prefix parent-directory URLs" do
+			url = Protocol::URL::Relative.new("/assets/app.js")
+			result = url.relative_to("/docs/index", explicit: true)
+			
+			expect(result.to_s).to be == "../assets/app.js"
+		end
+		
 		it "accepts a URL as the base" do
 			url = Protocol::URL::Relative.new("/docs/guide")
 			base = Protocol::URL::Relative.new("/docs/index")

@@ -138,15 +138,16 @@ module Protocol
 			# are preserved when converting a root-relative path.
 			#
 			# @parameter base [Relative | Path | String] The base URL or path.
+			# @parameter explicit [Boolean] Whether same-directory paths should start with `./`.
 			# @returns [Relative] The relative URL.
-			def relative_to(base)
+			def relative_to(base, explicit: false)
 				return self unless @path.absolute?
 				
 				if base.is_a?(Relative)
 					base = base.path
 				end
 				
-				return self.class.new(@path.relative(base), @query, @fragment)
+				return self.class.new(@path.relative(base, explicit: explicit), @query, @fragment)
 			end
 			
 			# Normalize the encoded path and simplify its structure.
