@@ -114,7 +114,8 @@ module Protocol
 			end
 			
 			# Append the absolute URL to the given buffer.
-			def append(buffer = String.new)
+			# @parameter explicit [Boolean] Ignored because absolute URLs are already lexically identifiable.
+			def append(buffer = String.new, explicit: false)
 				buffer << @scheme << ":" if @scheme
 				buffer << "//" << @authority if @authority
 				super(buffer)
@@ -147,9 +148,8 @@ module Protocol
 			
 			# Absolute URLs cannot be made relative without comparing their origins.
 			# @parameter base [Object] The ignored base URL or path.
-			# @parameter explicit [Boolean] Ignored for absolute URLs.
 			# @returns [self] This absolute URL.
-			def relative_to(base, explicit: false)
+			def relative_to(base)
 				return self
 			end
 			
@@ -170,9 +170,10 @@ module Protocol
 			
 			# Convert the URL to its string representation.
 			#
+			# @parameter explicit [Boolean] Ignored because absolute URLs are already lexically identifiable.
 			# @returns [String] The formatted absolute URL string.
-			def to_s
-				append
+			def to_s(explicit: false)
+				append(explicit: explicit)
 			end
 		end
 	end

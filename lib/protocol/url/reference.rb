@@ -162,8 +162,9 @@ module Protocol
 			# Append the reference to the given buffer.
 			# Encodes the fragment; the path already retains its encoded structure.
 			# Query strings are passed through as-is (they contain = and & which are valid syntax).
-			def append(buffer = String.new)
-				buffer << @path.encoded
+			# @parameter explicit [Boolean] Whether the result should be lexically identifiable as a URL in a mixed grammar.
+			def append(buffer = String.new, explicit: false)
+				append_path(buffer, explicit: explicit)
 				
 				if @query and !@query.empty?
 					buffer << "?" << @query

@@ -328,6 +328,14 @@ describe Protocol::URL::Reference do
 		end
 	end
 	
+	with "#to_s" do
+		it "can serialize relative references explicitly" do
+			reference = subject.new("guide", nil, nil, {"page" => "2"})
+			
+			expect(reference.to_s(explicit: true)).to be == "./guide?page=2"
+		end
+	end
+	
 	describe Protocol::URL::Reference.parse("path%20with%20spaces/image.jpg") do
 		it "preserves encoded whitespace" do
 			expect(subject.to_s).to be == "path%20with%20spaces/image.jpg"
