@@ -1,6 +1,6 @@
 # Releases
 
-## Unreleased
+## v0.18.0
 
   - Support explicit URL serialization for mixed grammars, and remove explicit prefixes from relative path calculation.
 
