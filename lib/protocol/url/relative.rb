@@ -138,16 +138,15 @@ module Protocol
 			# are preserved when converting a root-relative path.
 			#
 			# @parameter base [Relative | Path | String] The base URL or path.
-			# @parameter explicit [Boolean] Whether same-directory paths should start with `./`.
 			# @returns [Relative] The relative URL.
-			def relative_to(base, explicit: false)
+			def relative_to(base)
 				return self unless @path.absolute?
 				
 				if base.is_a?(Relative)
 					base = base.path
 				end
 				
-				return self.class.new(@path.relative(base, explicit: explicit), @query, @fragment)
+				return self.class.new(@path.relative(base), @query, @fragment)
 			end
 			
 			# Normalize the encoded path and simplify its structure.
@@ -176,8 +175,9 @@ module Protocol
 			
 			# Append the relative URL to the given buffer.
 			# The path, query, and fragment are expected to already be properly encoded.
-			def append(buffer = String.new)
-				buffer << @path.encoded
+			# @parameter explicit [Boolean] Whether the result should be lexically identifiable as a URL in a mixed grammar.
+			def append(buffer = String.new, explicit: false)
+				append_path(buffer, explicit: explicit)
 				
 				if @query and !@query.empty?
 					buffer << "?" << @query
@@ -237,10 +237,13 @@ module Protocol
 			end
 			
 			# Convert the URL to its string representation.
+			# When explicit, same-directory references start with `./` so they can be
+			# distinguished from non-URL values in a mixed grammar.
 			#
+			# @parameter explicit [Boolean] Whether the result should be lexically identifiable as a URL in a mixed grammar.
 			# @returns [String] The formatted URL string.
-			def to_s
-				append
+			def to_s(explicit: false)
+				append(explicit: explicit)
 			end
 			
 			# Convert the URL to a JSON-compatible representation.
@@ -262,6 +265,16 @@ module Protocol
 			# @returns [String] A string like `#<Protocol::URL::Relative /path?query#fragment>`.
 			def inspect
 				"#<#{self.class} #{to_s}>"
+			end
+			
+			# Append the path, optionally identifying a relative URL explicitly.
+			private def append_path(buffer, explicit: false)
+				if explicit && @path.relative?
+					path = @path.encoded
+					buffer << "./" unless path.start_with?("./", "../")
+				end
+				
+				buffer << @path.encoded
 			end
 			
 		end

@@ -501,14 +501,6 @@ describe Protocol::URL::Path do
 			expect(Protocol::URL::Path.relative("/docs/guide.html", "/docs/index.html")).to be == "guide.html"
 		end
 		
-		it "can identify a same-directory path explicitly" do
-			expect(Protocol::URL::Path.relative("/docs/guide.html", "/docs/index.html", explicit: true)).to be == "./guide.html"
-		end
-		
-		it "does not prefix a parent-directory path" do
-			expect(Protocol::URL::Path.relative("/assets/app.js", "/docs/index.html", explicit: true)).to be == "../assets/app.js"
-		end
-		
 		it "calculates relative path from root to subdirectory" do
 			expect(Protocol::URL::Path.relative("/foo/bar/", "/")).to be == "foo/bar/"
 		end

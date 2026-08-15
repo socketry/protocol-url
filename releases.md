@@ -1,5 +1,9 @@
 # Releases
 
+## Unreleased
+
+  - Support explicit URL serialization for mixed grammars, and remove explicit prefixes from relative path calculation.
+
 ## v0.17.0
 
   - Add optional explicit `./` prefixes when generating same-directory relative URLs.
