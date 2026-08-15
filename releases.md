@@ -1,5 +1,9 @@
 # Releases
 
+## Unreleased
+
+  - Add optional explicit `./` prefixes when generating same-directory relative URLs.
+
 ## v0.16.0
 
   - Preserve directory and file semantics when generating relative URL paths.

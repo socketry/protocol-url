@@ -204,6 +204,7 @@ describe Protocol::URL::Absolute do
 			url = Protocol::URL::Absolute.new("https", "example.com", "/docs/guide", "q=ruby", "examples")
 			
 			expect(url.relative_to("/docs/index")).to be_equal(url)
+			expect(url.relative_to("/docs/index", explicit: true)).to be_equal(url)
 		end
 	end
 	

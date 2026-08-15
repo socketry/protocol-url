@@ -67,6 +67,7 @@ module Protocol
 			#
 			# @parameter target [String] The destination path (where you want to go).
 			# @parameter from [String] The source path (where you are starting from).
+			# @parameter explicit [Boolean] Whether same-directory paths should start with `./`.
 			# @returns [String] The relative path from `from` to `target`.
 			#
 			# @example Calculate relative path between pages.
@@ -76,8 +77,8 @@ module Protocol
 			# @example Calculate relative path in same directory.
 			# 	Path.relative("/docs/guide.html", "/docs/index.html")
 			# 	# => "guide.html"
-			def self.relative(target, from)
-				return Path[target].relative(from).to_s
+			def self.relative(target, from, explicit: false)
+				return Path[target].relative(from, explicit: explicit).to_s
 			end
 			
 			# Initialize a path from either its complete encoded representation or encoded segments.
@@ -357,8 +358,9 @@ module Protocol
 			# Calculate this path relative to another path.
 			#
 			# @parameter from [String | Array(String) | Path] The source path.
+			# @parameter explicit [Boolean] Whether same-directory paths should start with `./`.
 			# @returns [Path] The relative path from `from` to this path.
-			def relative(from)
+			def relative(from, explicit: false)
 				target_segments = self.segments
 				from_segments = Path[from].segments
 				
@@ -386,6 +388,9 @@ module Protocol
 				# An empty reference identifies the current document, so identify the current directory explicitly:
 				if relative_segments == [""]
 					relative_segments = [".", ""]
+				elsif explicit && relative_segments.first != ".."
+					# Identify same-directory references explicitly:
+					relative_segments.unshift(".")
 				elsif relative_segments.first&.include?(":")
 					# A colon in the first segment would be interpreted as a URI scheme:
 					relative_segments.unshift(".")

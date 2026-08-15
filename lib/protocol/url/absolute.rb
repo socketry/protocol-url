@@ -147,8 +147,9 @@ module Protocol
 			
 			# Absolute URLs cannot be made relative without comparing their origins.
 			# @parameter base [Object] The ignored base URL or path.
+			# @parameter explicit [Boolean] Ignored for absolute URLs.
 			# @returns [self] This absolute URL.
-			def relative_to(base)
+			def relative_to(base, explicit: false)
 				return self
 			end
 			
