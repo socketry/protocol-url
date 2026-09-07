@@ -598,6 +598,16 @@ describe Protocol::URL::Reference do
 			expect(reference.parameters).to be == {"foo" => "bar"}
 		end
 		
+		it "creates mutable parameters when there is no query string" do
+			reference = subject.parse("/path")
+			
+			parameters = reference.parse_query!
+			parameters["foo"] = "bar"
+			
+			expect(reference.parameters).to be == {"foo" => "bar"}
+			expect(reference.to_s).to be == "/path?foo=bar"
+		end
+		
 		it "updates to_s output after parsing" do
 			reference = subject.parse("/path?foo=bar&baz=qux")
 			expect(reference.to_s).to be == "/path?foo=bar&baz=qux"

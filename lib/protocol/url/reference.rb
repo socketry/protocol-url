@@ -132,6 +132,8 @@ module Protocol
 			#
 			# Afterwards, the `query` attribute will be cleared.
 			#
+			# If there is no query string or existing parameters, an empty mutable hash is created.
+			#
 			# @returns [Hash] The merged parameters.
 			def parse_query!(encoding = Encoding)
 				if @query and !@query.empty?
@@ -146,7 +148,7 @@ module Protocol
 					@query = nil
 				end
 				
-				return @parameters
+				return @parameters ||= {}
 			end
 			
 			# @returns [Boolean] Whether the reference has a query string.
