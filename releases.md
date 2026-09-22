@@ -23,6 +23,7 @@
 ## v0.13.0
 
   - Add conservative normalization of encoded URL paths.
+  - Add an option to preserve empty path segments while simplifying paths.
 
 ## v0.12.0
 

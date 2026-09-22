@@ -298,6 +298,14 @@ messy.to_s  # => "https://example.com/a/c/d"
 
 If the original path structure is significant, retain the parsed URL and do not call `normalize!`.
 
+To normalize its encoding and resolve dot segments while preserving repeated separators, compose the path operations explicitly:
+
+``` ruby
+url = Protocol::URL["https://example.com/a//b/./c"]
+url.path = url.path.normalize.simplify(preserve_empty: true)
+url.to_s  # => "https://example.com/a//b/c"
+```
+
 ## Best Practices
 
 ### Choose the Right Class
